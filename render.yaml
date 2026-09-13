@@ -1,0 +1,34 @@
+# One-click deploy: https://render.com/deploy?repo=<your GitHub repository URL>
+services:
+  - type: web
+    name: healthy-planet-hire
+    runtime: docker
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/public/roles
+    disk:
+      name: data
+      mountPath: /app/server/data
+      sizeGB: 5
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Dr. Arunabh Singh
+      - key: PUBLIC_URL
+        fromService:
+          type: web
+          name: healthy-planet-hire
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: WA_VERIFY_TOKEN
+        value: healthyplanet-verify
+      - key: FOLLOWUP_DAYS
+        value: "3"
+      - key: RETENTION_MONTHS
+        value: "12"
+      - key: SNAPSHOT_DAYS
+        value: "90"

@@ -1,0 +1,6 @@
+services:
+  app:
+    build: .
+    env_file: ./server/.env
+    volumes: ["./server/data:/app/server/data"]
+    ports: ["4000:4000"]

@@ -1,0 +1,197 @@
+import { Router } from "express";
+import { db, rowInterview, rowCandidate, rowRole, rowEvaluation, logEvent } from "../db.js";
+import { getTemplates, fill, deliver } from "../services/messaging.js";
+import { transcriptText } from "../services/video.js";
+import { interviewTurn, interviewReport, analyseAnswers, aiEnabled } from "../ai.js";
+import { fire } from "../services/rules.js";
+import { LANGUAGES } from "../db.js";
+import { ruleBasedFlags, combine } from "../services/integrity.js";
+
+export const pub = Router();
+const load = (token) => {
+  const i = rowInterview(db.prepare("SELECT * FROM interviews WHERE token = ?").get(token));
+  if (!i) return null;
+  const c = rowCandidate(db.prepare("SELECT * FROM candidates WHERE id = ?").get(i.candidate_id));
+  return { i, c, r: rowRole(db.prepare("SELECT * FROM roles WHERE id = ?").get(c.role_id)) };
+};
+
+pub.get("/interview/:token", (req, res) => {
+  const x = load(req.params.token); if (!x) return res.status(404).json({ error: "This interview link is not valid" });
+  const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: LANGUAGES, interactive: x.r.interview_mode === "interactive" && !!x.r.scenario, total: x.r.questions.length + (x.r.interview_mode === "interactive" && x.r.scenario ? 4 : 0), proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
+});
+
+pub.post("/interview/:token/start", async (req, res, next) => {
+  try {
+    const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
+    if (x.i.status === "completed") return res.status(400).json({ error: "This interview is already complete" });
+    if (new Date(x.i.expires_at) < new Date()) return res.status(400).json({ error: "This link has expired. Please ask the school for a new one." });
+    if (x.i.transcript.length) return res.json({ transcript: x.i.transcript });
+    if (req.body.language) x.i.language = req.body.language;
+    const t = await interviewTurn(x.r, x.c, x.i.language, []);
+    const transcript = [{ role: "assistant", content: t.content, at: Date.now() }];
+    db.prepare("UPDATE interviews SET status='in_progress', language=?, transcript=?, started_at=datetime('now') WHERE id=?").run(x.i.language, JSON.stringify(transcript), x.i.id);
+    logEvent(x.c.id, "interview_started", "");
+    res.json({ transcript });
+  } catch (e) { next(e); }
+});
+
+pub.post("/interview/:token/answer", async (req, res, next) => {
+  try {
+    const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
+    if (x.i.status === "completed") return res.status(400).json({ error: "Already complete" });
+    const answer = (req.body.answer || "").trim(); if (!answer) return res.status(400).json({ error: "Please type an answer" });
+    const askedAt = x.i.transcript[x.i.transcript.length - 1]?.at || Date.now();
+    const transcript = [...x.i.transcript, { role: "user", content: answer, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)) } }];
+    const t = await interviewTurn(x.r, x.c, x.i.language, transcript.map(({ role, content }) => ({ role, content })));
+    transcript.push({ role: "assistant", content: t.content, at: Date.now() });
+    db.prepare("UPDATE interviews SET transcript=? WHERE id=?").run(JSON.stringify(transcript), x.i.id);
+    if (t.ended) {
+      db.prepare("UPDATE interviews SET status='completed', completed_at=datetime('now') WHERE id=?").run(x.i.id);
+      logEvent(x.c.id, "interview_completed", "");
+      // Generate the report in the background so the candidate isn't kept waiting
+      finishInterview(x, transcript).catch((e) => logEvent(x.c.id, "interview_report_failed", e.message));
+    }
+    res.json({ transcript, ended: t.ended });
+  } catch (e) { next(e); }
+});
+
+async function finishInterview(x, transcript) {
+  const rep = await interviewReport(x.r, x.c, transcript.map(({ role, content }) => ({ role, content })));
+  const fresh = load(x.i.token).i; // pick up signals that arrived during the interview
+  let ai = null; try { ai = await analyseAnswers(x.r, x.c, transcript); } catch {}
+  const integrity = combine(ruleBasedFlags({ ...fresh, transcript }), ai);
+  db.prepare("UPDATE interviews SET report=?, integrity=? WHERE id=?").run(JSON.stringify(rep), JSON.stringify(integrity), x.i.id);
+  db.prepare("UPDATE candidates SET stage='Shortlist', stage_at=datetime('now') WHERE id=? AND stage='AI interview'").run(x.c.id);
+  logEvent(x.c.id, "interview_report", `score ${rep.overall}: ${rep.recommendation}`);
+  if (integrity.risk !== "clear" && integrity.risk !== "low") logEvent(x.c.id, "integrity_alert", `${integrity.risk} risk: ${integrity.reasons.map((r) => r.text).join("; ")}`);
+  await fire("interview_report", x.c.id, { score: rep.overall, risk: integrity.risk });
+}
+
+// Behaviour signals from the candidate's browser: hidden, blur, paste, copy, faces, camera_denied
+pub.post("/interview/:token/signal", (req, res) => {
+  const x = load(req.params.token); if (!x || x.i.status === "completed") return res.json({ ok: true });
+  const { type, detail = "" } = req.body || {};
+  if (!["hidden", "blur", "paste", "copy", "faces", "camera_denied", "camera_ok"].includes(type)) return res.status(400).json({ error: "Unknown signal" });
+  const signals = [...x.i.signals, { type, detail: String(detail).slice(0, 400), at: Date.now() }].slice(-300);
+  db.prepare("UPDATE interviews SET signals=? WHERE id=?").run(JSON.stringify(signals), x.i.id);
+  res.json({ ok: true });
+});
+
+// Small webcam frames (JPEG data URL, downscaled in the browser). Kept to 8 per interview.
+pub.post("/interview/:token/snapshot", (req, res) => {
+  const x = load(req.params.token); if (!x || x.i.status === "completed") return res.json({ ok: true });
+  const img = req.body?.image || "";
+  if (!img.startsWith("data:image/jpeg;base64,") || img.length > 120000) return res.status(400).json({ error: "Bad image" });
+  const snaps = [...x.i.snapshots, { image: img, at: Date.now() }].slice(-8);
+  db.prepare("UPDATE interviews SET snapshots=? WHERE id=?").run(JSON.stringify(snaps), x.i.id);
+  res.json({ ok: true });
+});
+
+// Records which device/browser opened the link
+pub.post("/interview/:token/session", (req, res) => {
+  const x = load(req.params.token); if (!x) return res.json({ ok: true });
+  const id = String(req.body?.id || "").slice(0, 64); if (!id) return res.json({ ok: true });
+  if (!x.i.sessions.includes(id)) db.prepare("UPDATE interviews SET sessions=? WHERE id=?").run(JSON.stringify([...x.i.sessions, id]), x.i.id);
+  res.json({ ok: true });
+});
+
+// Video interview page data
+pub.get("/video/:token", (req, res) => {
+  const x = load(req.params.token); if (!x || x.i.kind !== "video") return res.status(404).json({ error: "This interview link is not valid" });
+  const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
+  if (x.i.status === "pending") db.prepare("UPDATE interviews SET status='in_progress', started_at=datetime('now') WHERE id=?").run(x.i.id);
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, room_url: expired ? null : x.i.room_url, questions: x.r.questions });
+});
+pub.post("/video/:token/done", (req, res) => {
+  const x = load(req.params.token); if (!x) return res.json({ ok: true });
+  db.prepare("UPDATE interviews SET status='completed', completed_at=datetime('now') WHERE id=? AND status<>'completed'").run(x.i.id);
+  logEvent(x.c.id, "interview_completed", "video; waiting for recording and transcript"); res.json({ ok: true });
+});
+
+// Panel scoring form (demo lesson / school interview), no login needed
+pub.get("/score/:token", (req, res) => {
+  const e = rowEvaluation(db.prepare("SELECT * FROM evaluations WHERE token=?").get(req.params.token)); if (!e) return res.status(404).json({ error: "This scoring link is not valid" });
+  const c = db.prepare("SELECT name, role_id FROM candidates WHERE id=?").get(e.candidate_id), r = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
+  res.json({ candidate: c.name, role: r.title, stage: e.stage, panelist: e.panelist, rubric: r.rubric, submitted: !!e.submitted_at, scores: e.scores, comment: e.comment, recommendation: e.recommendation });
+});
+pub.post("/score/:token", (req, res) => {
+  const e = db.prepare("SELECT * FROM evaluations WHERE token=?").get(req.params.token); if (!e) return res.status(404).json({ error: "Invalid link" });
+  const { scores, comment = "", recommendation = "", panelist } = req.body;
+  if (!scores || !Object.keys(scores).length) return res.status(400).json({ error: "Give a score for each item" });
+  db.prepare("UPDATE evaluations SET scores=?, comment=?, recommendation=?, panelist=COALESCE(?, panelist), submitted_at=datetime('now') WHERE id=?").run(JSON.stringify(scores), comment, recommendation, panelist || null, e.id);
+  const avg = Object.values(scores).reduce((a, b) => a + +b, 0) / Object.keys(scores).length;
+  logEvent(e.candidate_id, "evaluation", `${e.stage} scored ${avg.toFixed(1)}/5 by ${panelist || e.panelist}: ${recommendation}`);
+  res.json({ ok: true });
+});
+
+// Self-booking: candidate picks an open slot for their role
+pub.get("/book/:token", (req, res) => {
+  const c = db.prepare("SELECT * FROM candidates WHERE booking_token=?").get(req.params.token); if (!c) return res.status(404).json({ error: "This booking link is not valid" });
+  const r = db.prepare("SELECT title, campus FROM roles WHERE id=?").get(c.role_id);
+  const mine = db.prepare("SELECT * FROM slots WHERE candidate_id=? ORDER BY starts_at DESC LIMIT 1").get(c.id);
+  const open = db.prepare("SELECT id, starts_at, ends_at, location, stage FROM slots WHERE role_id=? AND candidate_id IS NULL AND starts_at > datetime('now') ORDER BY starts_at").all(c.role_id);
+  res.json({ candidate: c.name.split(" ")[0], role: r?.title, booked: mine, open });
+});
+pub.post("/book/:token", async (req, res, next) => {
+  try {
+    const c = rowCandidate(db.prepare("SELECT * FROM candidates WHERE booking_token=?").get(req.params.token)); if (!c) return res.status(404).json({ error: "Invalid link" });
+    const slot = db.prepare("SELECT * FROM slots WHERE id=? AND role_id=? AND candidate_id IS NULL").get(req.body.slot_id, c.role_id);
+    if (!slot) return res.status(409).json({ error: "That time has just been taken. Please pick another." });
+    db.prepare("UPDATE slots SET candidate_id=NULL WHERE candidate_id=?").run(c.id); // release any earlier booking
+    db.prepare("UPDATE slots SET candidate_id=?, booked_at=datetime('now') WHERE id=?").run(c.id, slot.id);
+    db.prepare("UPDATE candidates SET interview_at=?, stage=CASE WHEN stage IN ('Shortlist','AI interview','Screened') THEN ? ELSE stage END, stage_at=CASE WHEN stage IN ('Shortlist','AI interview','Screened') THEN datetime('now') ELSE stage_at END WHERE id=?").run(slot.starts_at, slot.stage, c.id);
+    logEvent(c.id, "booked", `${slot.stage} on ${slot.starts_at}`);
+    await fire("booked", c.id, {});
+    const role = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
+    const when = new Date(slot.starts_at).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+    try { if (c.phone || c.email) await deliver(c, c.phone ? "whatsapp" : "email", fill(getTemplates()["School interview"], c, role, { slots: `${when} at ${slot.location}` })); } catch {}
+    res.json({ ok: true, slot });
+  } catch (e) { next(e); }
+});
+
+// Shareable candidate report for hiring managers, board members or external panelists (no login; rotate the link to revoke)
+pub.get("/report/:token", (req, res) => {
+  const c = rowCandidate(db.prepare("SELECT * FROM candidates WHERE share_token=? AND anonymized=0").get(req.params.token)); if (!c) return res.status(404).json({ error: "This report link is not valid" });
+  const r = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
+  const iv = db.prepare("SELECT * FROM interviews WHERE candidate_id=? AND report IS NOT NULL ORDER BY created_at DESC LIMIT 1").get(c.id);
+  const evals = db.prepare("SELECT panelist, stage, scores, comment, recommendation FROM evaluations WHERE candidate_id=? AND submitted_at IS NOT NULL").all(c.id).map(rowEvaluation);
+  res.json({ name: c.name, role: r?.title, campus: r?.campus, stage: c.stage, criteria: r?.criteria || [], rubric: r?.rubric || [], screening: c.screening, interview: iv ? { report: JSON.parse(iv.report), integrity: iv.integrity ? JSON.parse(iv.integrity).risk : null, kind: iv.kind } : null, evaluations: evals, resume_excerpt: (c.resume_text || "").slice(0, 1500) });
+});
+
+// Daily.co webhooks: recording ready, transcript ready
+pub.post("/webhooks/daily", async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const ev = req.body || {}, room = ev.payload?.room_name || ev.payload?.room; if (!room) return;
+    const iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE room_name=?").get(room)); if (!iv) return;
+    if (ev.type === "recording.ready-to-download") { db.prepare("UPDATE interviews SET recording_id=?, recording_url=NULL, status='completed', completed_at=COALESCE(completed_at, datetime('now')) WHERE id=?").run(ev.payload.recording_id, iv.id); logEvent(iv.candidate_id, "recording_ready", ""); }
+    if (ev.type === "transcript.ready-to-download" && ev.payload.transcript_id) {
+      db.prepare("UPDATE interviews SET transcript_id=? WHERE id=?").run(ev.payload.transcript_id, iv.id);
+      const text = await transcriptText(ev.payload.transcript_id);
+      const transcript = text.split("\n").filter(Boolean).map((line) => ({ role: /^(maya|interviewer|panel)/i.test(line) ? "assistant" : "user", content: line }));
+      const c = rowCandidate(db.prepare("SELECT * FROM candidates WHERE id=?").get(iv.candidate_id)), r = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
+      db.prepare("UPDATE interviews SET transcript=? WHERE id=?").run(JSON.stringify(transcript), iv.id);
+      const rep = await interviewReport(r, c, transcript);
+      db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id);
+      logEvent(c.id, "interview_report", `video: score ${rep.overall}`);
+    }
+  } catch (e) { console.error("daily webhook", e.message); }
+});
+
+// Indeed/Google-for-Jobs compatible XML feed of open roles
+pub.get("/jobs.xml", (req, res) => {
+  const base = (process.env.PUBLIC_URL || "").replace(/\/$/, ""), esc = (s) => `<![CDATA[${s || ""}]]>`;
+  const rows = db.prepare("SELECT * FROM roles WHERE status='open'").all().map(rowRole);
+  res.type("application/xml").send(`<?xml version="1.0" encoding="utf-8"?><source><publisher>Healthy Planet School</publisher><publisherurl>${base}</publisherurl>${rows.map((r) => `<job><title>${esc(r.title)}</title><date>${esc(r.created_at)}</date><referencenumber>${r.id}</referencenumber><url>${esc(`${base}/apply/${r.id}`)}</url><company>Healthy Planet School</company><city>${esc(r.campus)}</city><state>Uttar Pradesh</state><country>IN</country><description>${esc(r.description || r.criteria.map((c) => c.text).join(". "))}</description><jobtype>fulltime</jobtype>${r.salary_band ? `<salary>${esc(r.salary_band)}</salary>` : ""}</job>`).join("")}</source>`);
+});
+
+// Careers-page form can post straight here
+pub.post("/apply", (req, res) => {
+  const { role_id, name, phone, email, resume_text } = req.body;
+  if (!name || !role_id) return res.status(400).json({ error: "Name and role are required" });
+  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, booking_token) VALUES (?,?,?,?,'Careers page',?,?)").run(role_id, name, phone || "", email || "", resume_text || "", Math.random().toString(36).slice(2) + Date.now().toString(36));
+  logEvent(r.lastInsertRowid, "created", "via careers page");
+  res.status(201).json({ ok: true });
+});
+pub.get("/roles", (req, res) => res.json(db.prepare("SELECT id, title, department, campus, description, salary_band FROM roles WHERE status = 'open'").all()));
