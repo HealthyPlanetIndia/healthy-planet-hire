@@ -3,14 +3,14 @@ import { Link } from "react-router-dom";
 import { api, isAdmin } from "../api.js";
 
 export default function Dashboard() {
-  const [d, setD] = useState(null); const [s, setS] = useState(null); const [setupState, setSetup] = useState(null);
+  const [d, setD] = useState(null); const [s, setS] = useState(null); const [setupState, setSetup] = useState(null); const [reqs, setReqs] = useState([]);
+  useEffect(() => { if (isAdmin()) api("/requisitions").then(setReqs).catch(() => {}); }, []);
   useEffect(() => { api("/dashboard").then(setD).catch(() => setD({ byStage: [], newThisWeek: 0, avgDaysToOffer: null, interviews: [] })); api("/status").then(setS).catch(() => {}); if (isAdmin()) api("/setup").then(setSetup).catch(() => {}); }, []);
   if (!d) return <div className="muted">Loading...</div>;
   const n = (st) => d.byStage.find((x) => x.stage === st)?.n || 0;
   const active = ["Applied", "Screened", "AI interview", "Screening call", "Shortlist", "Leadership interview", "Subject assessment", "Demo lesson", "Written assessment", "Final review", "HR discussion", "Offer"].reduce((a, st) => a + n(st), 0);
   const done = d.interviews.find((x) => x.status === "completed")?.n || 0;
   const todo = setupState?.items.filter((i) => !i.optional && !i.ok) || [];
-  const [reqs, setReqs] = useState([]); useEffect(() => { if (isAdmin()) api("/requisitions").then(setReqs).catch(() => {}); }, []);
   return (
     <div className="grid">
       {(reqs.length > 0 || n("Final review") > 0) && <div className="card" style={{ borderColor: "var(--blue)" }}><b>Waiting for the Director</b><div className="muted" style={{ fontSize: 13 }}>{reqs.length > 0 && <div><Link to="/roles">{reqs.length} manpower requisition{reqs.length > 1 ? "s" : ""}</Link> to approve or reject.</div>}{n("Final review") > 0 && <div><Link to="/pipeline">{n("Final review")} candidate{n("Final review") > 1 ? "s" : ""}</Link> at Final review awaiting your decision.</div>}</div></div>}
