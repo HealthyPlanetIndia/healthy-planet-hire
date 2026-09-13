@@ -39,7 +39,7 @@ export default function CandidatePanel({ id, roles, onClose }) {
             <button className="warm" disabled={!!busy} onClick={() => interviewLink(c.phone ? "whatsapp" : c.email ? "email" : null)}>{busy === "iv" ? "Creating..." : t("Send AI interview")}</button>
             <button className="small" disabled={!!busy} onClick={() => interviewLink(null)}>Copy link only</button>
             <button className="small" onClick={() => { navigator.clipboard?.writeText(c.share_link); say("Report link copied. Anyone with it can read the report; rotate it under History to revoke."); }}>Share report</button>
-            <button className="small" disabled={!!busy} onClick={() => run("iv", async () => { const r = await api(`/candidates/${id}/interviews`, { method: "POST", body: { kind: "video", send: c.phone ? "whatsapp" : "email" } }); if (r.delivery?.link) window.open(r.delivery.link, "_blank"); say("Video interview link sent"); })}>Video interview</button>
+            <button className="small" disabled={!!busy} onClick={() => run("iv", async () => { const r = await api(`/candidates/${id}/interviews`, { method: "POST", body: { mode: "text", send: c.phone ? "whatsapp" : "email" } }); if (r.delivery?.link) window.open(r.delivery.link, "_blank"); say("Typed interview link sent (accessibility fallback)"); })}>Typed version</button>
           </>}
         </div>
         {c.duplicates?.length > 0 && <div style={{ background: "#FDF3D6", borderRadius: 10, padding: 10, fontSize: 13, marginBottom: 10 }}><b>Possible duplicate.</b> {c.duplicates.map((d) => `${d.name} (${d.reason}, ${d.role_title || "no role"}, ${d.stage})`).join("; ")}. Check before contacting twice.</div>}
@@ -69,6 +69,7 @@ export default function CandidatePanel({ id, roles, onClose }) {
             {iv.kind === "video" && iv.recording_id && <div className="row" style={{ marginTop: 6 }}><button className="small" onClick={async () => { try { const r = await api(`/candidates/${id}/interviews/${iv.id}/recording`); window.open(r.url, "_blank"); say(`Viewing link valid for ${r.expires_in_minutes} minutes; this view is logged`); } catch (e) { say(e.message); } }}>Watch recording</button><span className="muted" style={{ fontSize: 12 }}>Stored encrypted at Daily.co, private. Deleted after 90 days or when the candidate is erased.</span></div>}
             {iv.kind === "video" && !iv.recording_id && iv.status === "completed" && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Recording is being processed.</div>}
             {!iv.report && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{iv.status === "pending" ? `Link sent, not yet opened. Expires ${new Date(iv.expires_at).toLocaleDateString("en-IN")}.` : iv.status === "in_progress" ? "Candidate is mid-interview." : "Report is being written, refresh in a moment."}<br /><span style={{ wordBreak: "break-all" }}>{iv.link}</span></div>}
+            {iv.clips?.length > 0 && <Clips candId={id} iv={iv} say={say} />}
             {iv.integrity && <Integrity iv={iv} />}
             {iv.report && <>
               <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{iv.report.summary}</div>
@@ -209,5 +210,25 @@ function Evaluations({ c, id, say, reload }) {
       <input placeholder="Panelist name (e.g. Principal, HOD Maths)" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1 }} />
       <button disabled={!name.trim()} onClick={async () => { try { const r = await api(`/candidates/${id}/evaluations`, { method: "POST", body: { panelist: name, stage: c.stage === "Demo lesson" ? "Demo lesson" : "School interview" } }); await navigator.clipboard?.writeText(r.link); say("Scoring link copied; send it to the panelist"); setName(""); reload(); } catch (e) { say(e.message); } }}>Create scoring link</button>
     </div>
+  </div>;
+}
+
+function Clips({ candId, iv, say }) {
+  const [clips, setClips] = useState(null); const [open, setOpen] = useState(false); const [canTx, setCanTx] = useState(false); const [busy, setBusy] = useState(false);
+  const load = () => api(`/candidates/${candId}/interviews/${iv.id}/clips`).then((r) => { setClips(r.clips); setCanTx(r.transcribe); }).catch((e) => say(e.message));
+  return <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+    <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 14 }}>Video answers ({iv.clips.length})</b><button className="small" onClick={() => { setOpen(!open); if (!clips) load(); }}>{open ? "Hide" : "Watch"}</button></div>
+    {open && !clips && <div className="muted" style={{ fontSize: 13 }}>Loading...</div>}
+    {open && clips && <div className="grid" style={{ gap: 12, marginTop: 8 }}>
+      {clips.map((k) => <div key={k.index} style={{ fontSize: 13 }}>
+        <div className="muted" style={{ marginBottom: 4 }}><b>Q{k.index + 1}.</b> {k.question}</div>
+        <video controls preload="metadata" src={k.url} style={{ width: "100%", maxHeight: 280, background: "#000", borderRadius: 8 }} />
+        <div style={{ marginTop: 4 }}><span className="muted">{k.browser_text ? "Transcript:" : "Heard by the phone:"}</span> {k.answer}{k.seconds ? <span className="muted"> · {Math.floor(k.seconds / 60)}:{String(k.seconds % 60).padStart(2, "0")}</span> : null}{k.confidence != null && <span className="muted"> · confidence {Math.round(k.confidence * 100)}%</span>}</div>
+        {k.browser_text && k.browser_text !== k.answer && <details style={{ fontSize: 12 }}><summary className="muted">What the phone heard</summary>{k.browser_text}</details>}
+        {k.candidate_note && <div style={{ fontSize: 12, background: "#FDF3D6", borderRadius: 6, padding: "6px 8px", marginTop: 4 }}><b>Candidate's note on the transcription:</b> {k.candidate_note}</div>}
+      </div>)}
+      {canTx && <button className="small" disabled={busy} onClick={async () => { setBusy(true); try { await api(`/candidates/${candId}/interviews/${iv.id}/retranscribe`, { method: "POST" }); say("Re-transcribed and report refreshed"); await load(); } catch (e) { say(e.message); } setBusy(false); }}>{busy ? "Transcribing..." : "Re-transcribe all and refresh report"}</button>}
+      <div className="muted" style={{ fontSize: 12 }}>Stored encrypted on the school's server. Links expire after 30 minutes; each opening is logged. Deleted after 90 days or when the candidate is erased.</div>
+    </div>}
   </div>;
 }

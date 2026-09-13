@@ -198,3 +198,29 @@ test("setup wizard reports status and runs safe tests", async () => {
   const ai = (await req("/setup/test/ai", { method: "POST", body: {} })).data; assert.equal(ai.ok, false); assert.match(ai.message, /ANTHROPIC_API_KEY/);
   const reg = (await req("/setup/whatsapp/register", { method: "POST", body: {} })).data; assert.equal(reg.ok, false);
 });
+
+test("video answers are stored encrypted, streamed by signed link, and erased with the candidate", async () => {
+  const c = (await req("/candidates", { method: "POST", body: { name: "Video Person", role_id: 1 } })).data;
+  const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
+  const fake = Buffer.alloc(5000, 7);
+  const up = await fetch(`${BASE}/public/interview/${iv.token}/clip/0?seconds=12`, { method: "POST", headers: { "Content-Type": "video/webm" }, body: fake });
+  assert.equal(up.status, 200);
+  const full = (await req(`/candidates/${c.id}`)).data; const ivId = full.interviews[0].id;
+  assert.equal(full.interviews[0].clips.length, 1);
+  const links = (await req(`/candidates/${c.id}/interviews/${ivId}/clips`)).data.clips; assert.equal(links.length, 1); assert.equal(links[0].seconds, 12);
+  const play = await fetch(links[0].url.replace("http://test.local/api", BASE)); assert.equal(play.status, 200); const body = Buffer.from(await play.arrayBuffer()); assert.equal(body.length, 5000); assert.equal(body[0], 7);
+  assert.equal((await fetch(BASE + "/public/clip/1.0.1.bad")).status, 403);
+  const stored = fs.readdirSync(path.join(dir, "files", "clips")); assert.equal(stored.length, 1);
+  assert.notEqual(fs.readFileSync(path.join(dir, "files", "clips", stored[0]))[40], 7); // ciphertext, not the plain bytes
+  await req(`/candidates/${c.id}/purge`, { method: "DELETE" });
+  assert.equal(fs.readdirSync(path.join(dir, "files", "clips")).length, 0);
+});
+
+test("candidate can see their transcription and add a correction note", async () => {
+  const c = (await req("/candidates", { method: "POST", body: { name: "Note Person", role_id: 1 } })).data;
+  const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
+  const tr0 = (await req(`/public/interview/${iv.token}/transcript/0`, { auth: false })).data; assert.equal(tr0.ready, true);
+  const n = await req(`/public/interview/${iv.token}/transcript/0/note`, { method: "POST", body: { note: "I said inquiry, not enquiry" }, auth: false });
+  assert.equal(n.status, 200);
+  const events = (await req(`/candidates/${c.id}`)).data.events; assert.ok(events.some((e) => e.type === "transcript_note"));
+});

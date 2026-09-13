@@ -8,6 +8,7 @@ import { waEnabled, sendWhatsApp } from "../services/whatsapp.js";
 import { mailEnabled, sendEmail } from "../services/email.js";
 import { smsEnabled, sendSms } from "../services/sms.js";
 import { videoEnabled } from "../services/video.js";
+import { transcribeEnabled, transcribeBuffer } from "../services/transcribe.js";
 
 export const setup = Router();
 setup.use(requireAdmin);
@@ -23,7 +24,8 @@ setup.get("/", async (req, res) => {
     { key: "whatsapp", label: "WhatsApp Business API", ok: waEnabled(), fix: "Add WA_TOKEN and WA_PHONE_NUMBER_ID, then register the webhook below.", optional: true },
     { key: "email", label: "Email sending", ok: mailEnabled(), fix: "Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM.", optional: true },
     { key: "sms", label: "SMS", ok: smsEnabled(), fix: "Add MSG91_AUTHKEY and MSG91_SENDER, or Twilio keys.", optional: true },
-    { key: "video", label: "Video interviews (Daily.co)", ok: videoEnabled(), fix: "Add DAILY_API_KEY and point Daily's webhook at " + publicUrl() + "/api/public/webhooks/daily.", optional: true },
+    { key: "transcribe", label: "Accurate transcription of spoken answers (Deepgram)", ok: transcribeEnabled(), fix: "Add DEEPGRAM_API_KEY. Without it, the candidate's phone does the transcription, which struggles with Hindi-English mixing.", optional: true },
+    { key: "video", label: "Live video rooms (Daily.co)", ok: videoEnabled(), fix: "Add DAILY_API_KEY and point Daily's webhook at " + publicUrl() + "/api/public/webhooks/daily.", optional: true },
     { key: "templates", label: "Message templates rewritten in your words", ok: counts.templates > 0, fix: "Settings → Message templates. Edit at least one and save." },
     { key: "roles", label: "A real role created", ok: counts.roles > 0, fix: "Roles → New role." },
     { key: "faqs", label: "WhatsApp assistant has answers", ok: counts.faqs >= 5, detail: `${counts.faqs} answers`, fix: "Automation → add at least 5 questions candidates ask.", optional: true },
@@ -42,6 +44,7 @@ setup.post("/test/:what", async (req, res) => {
     else if (w === "whatsapp") { if (!waEnabled()) throw new Error("WA_TOKEN or WA_PHONE_NUMBER_ID not set"); const id = await sendWhatsApp(to, "Healthy Planet Hire is connected to WhatsApp. This is a test message."); out = { ok: true, message: `Sent to ${to} (id ${id}). Check your phone.` }; }
     else if (w === "email") { if (!mailEnabled()) throw new Error("SMTP not set"); await sendEmail(to, "Healthy Planet Hire test", "Email sending is connected."); out = { ok: true, message: `Sent to ${to}. Check the inbox (and spam).` }; }
     else if (w === "sms") { if (!smsEnabled()) throw new Error("SMS not set"); await sendSms(to, "Healthy Planet Hire: SMS is connected."); out = { ok: true, message: `Sent to ${to}.` }; }
+    else if (w === "transcribe") { if (!transcribeEnabled()) throw new Error("DEEPGRAM_API_KEY not set"); const r = await fetch("https://api.deepgram.com/v1/projects", { headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` } }); if (!r.ok) throw new Error("Deepgram rejected the key"); out = { ok: true, message: "Deepgram key accepted. Spoken answers will be transcribed on the server with Hindi-English support." }; }
     else if (w === "webhook") { const r = await fetch(`${publicUrl()}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(process.env.WA_VERIFY_TOKEN || "healthyplanet-verify")}&hub.challenge=hello`); out = { ok: (await r.text()) === "hello", message: r.ok ? "Your server answers Meta's verification correctly." : `Server returned ${r.status}. Is PUBLIC_URL right?` }; }
     else throw new Error("Unknown test");
   } catch (e) { out = { ok: false, message: e.message }; }

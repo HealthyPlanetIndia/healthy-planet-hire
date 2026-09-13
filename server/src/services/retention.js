@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { db, FILES_DIR, DATA_DIR, logEvent } from "../db.js";
 import { videoEnabled, deleteRecording, deleteTranscript, deleteRoom } from "./video.js";
+import { deleteClips } from "./clips.js";
 
 // Data protection housekeeping (DPDP Act 2023): keep only what is needed, for as long as needed.
 //  - camera snapshots deleted after SNAPSHOT_DAYS (default 90)
@@ -19,12 +20,14 @@ export async function deleteRemoteMedia(interviews) {
 }
 export function purgeCandidate(id) {
   const c = db.prepare("SELECT * FROM candidates WHERE id=?").get(id); if (!c) return false;
+  deleteClips(db.prepare("SELECT id FROM interviews WHERE candidate_id=?").all(id).map((r) => r.id));
   deleteRemoteMedia(db.prepare("SELECT id, recording_id, transcript_id, room_name FROM interviews WHERE candidate_id=?").all(id)).catch(() => {});
   for (const f of db.prepare("SELECT file FROM checks WHERE candidate_id=? AND file IS NOT NULL").all(id)) try { fs.unlinkSync(path.join(FILES_DIR, f.file)); } catch {}
   db.prepare("DELETE FROM candidates WHERE id=?").run(id); // cascades to interviews, messages, checks, evaluations, events
   return true;
 }
 export function anonymizeCandidate(id) {
+  deleteClips(db.prepare("SELECT id FROM interviews WHERE candidate_id=?").all(id).map((r) => r.id));
   deleteRemoteMedia(db.prepare("SELECT id, recording_id, transcript_id, room_name FROM interviews WHERE candidate_id=?").all(id)).catch(() => {});
   db.prepare("UPDATE candidates SET name='Former applicant', phone='', email='', resume_text='', resume_file=NULL, notes='', screening=NULL, salary='', anonymized=1 WHERE id=?").run(id);
   db.prepare("DELETE FROM messages WHERE candidate_id=?").run(id);
@@ -39,9 +42,10 @@ export function runRetention() {
   // Video recordings follow the same clock as camera photos: gone after SNAPSHOT_DAYS (default 90). The written report stays.
   const oldVideo = db.prepare("SELECT id, recording_id, transcript_id, room_name FROM interviews WHERE (recording_id IS NOT NULL OR transcript_id IS NOT NULL) AND created_at < datetime('now', ?)").all(`-${snapDays} days`);
   deleteRemoteMedia(oldVideo).catch(() => {});
+  const clipsDeleted = deleteClips(db.prepare("SELECT id FROM interviews WHERE clips <> '[]' AND created_at < datetime('now', ?)").all(`-${snapDays} days`).map((r) => r.id));
   const old = db.prepare("SELECT id FROM candidates WHERE anonymized=0 AND stage='Not now' AND stage_at < datetime('now', ?)").all(`-${months} months`);
   for (const r of old) anonymizeCandidate(r.id);
-  return { snapshotsCleared: snaps, recordingsDeleted: oldVideo.length, anonymized: old.length };
+  return { snapshotsCleared: snaps, recordingsDeleted: oldVideo.length, clipsDeleted, anonymized: old.length };
 }
 export function backup() {
   const dir = path.join(DATA_DIR, "backups"); fs.mkdirSync(dir, { recursive: true });

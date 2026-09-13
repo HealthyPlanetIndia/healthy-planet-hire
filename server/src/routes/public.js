@@ -1,4 +1,7 @@
 import { Router } from "express";
+import express from "express";
+import { saveClip, MAX_CLIP_BYTES, readClip, verifyClipToken } from "../services/clips.js";
+import { transcribeEnabled, transcribeClip, transcribeAllPending } from "../services/transcribe.js";
 import { db, rowInterview, rowCandidate, rowRole, rowEvaluation, logEvent } from "../db.js";
 import { getTemplates, fill, deliver } from "../services/messaging.js";
 import { transcriptText } from "../services/video.js";
@@ -18,7 +21,7 @@ const load = (token) => {
 pub.get("/interview/:token", (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).json({ error: "This interview link is not valid" });
   const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
-  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: LANGUAGES, interactive: x.r.interview_mode === "interactive" && !!x.r.scenario, total: x.r.questions.length + (x.r.interview_mode === "interactive" && x.r.scenario ? 4 : 0), proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: LANGUAGES, mode: x.i.mode || "video", allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: x.r.interview_mode === "interactive" && !!x.r.scenario, total: x.r.questions.length + (x.r.interview_mode === "interactive" && x.r.scenario ? 4 : 0), proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
 });
 
 pub.post("/interview/:token/start", async (req, res, next) => {
@@ -42,7 +45,10 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
     if (x.i.status === "completed") return res.status(400).json({ error: "Already complete" });
     const answer = (req.body.answer || "").trim(); if (!answer) return res.status(400).json({ error: "Please type an answer" });
     const askedAt = x.i.transcript[x.i.transcript.length - 1]?.at || Date.now();
-    const transcript = [...x.i.transcript, { role: "user", content: answer, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)) } }];
+    const idx = x.i.transcript.filter((m) => m.role === "user").length;
+    const served = x.i.clips.find((c) => c.index === idx)?.transcript;
+    const content = served && served.length > 2 ? served : answer;
+    const transcript = [...x.i.transcript, { role: "user", content, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)), ...(served ? { browser_text: answer, transcribed: true } : {}) } }];
     const t = await interviewTurn(x.r, x.c, x.i.language, transcript.map(({ role, content }) => ({ role, content })));
     transcript.push({ role: "assistant", content: t.content, at: Date.now() });
     db.prepare("UPDATE interviews SET transcript=? WHERE id=?").run(JSON.stringify(transcript), x.i.id);
@@ -57,6 +63,8 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
 });
 
 async function finishInterview(x, transcript) {
+  // Give in-flight transcriptions a moment, then fill any gaps, so the report reads the best text we have
+  if (transcribeEnabled()) { await new Promise((r) => setTimeout(r, 4000)); await transcribeAllPending(x.i.id); transcript = load(x.i.token).i.transcript; }
   const rep = await interviewReport(x.r, x.c, transcript.map(({ role, content }) => ({ role, content })));
   const fresh = load(x.i.token).i; // pick up signals that arrived during the interview
   let ai = null; try { ai = await analyseAnswers(x.r, x.c, transcript); } catch {}
@@ -67,6 +75,43 @@ async function finishInterview(x, transcript) {
   if (integrity.risk !== "clear" && integrity.risk !== "low") logEvent(x.c.id, "integrity_alert", `${integrity.risk} risk: ${integrity.reasons.map((r) => r.text).join("; ")}`);
   await fire("interview_report", x.c.id, { score: rep.overall, risk: integrity.risk });
 }
+
+// Recorded video answer for question `index` (raw webm/mp4 body). Stored encrypted; transcript text comes separately via /answer.
+pub.post("/interview/:token/clip/:index", express.raw({ type: ["video/*", "application/octet-stream"], limit: MAX_CLIP_BYTES }), (req, res) => {
+  const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
+  if (x.i.status === "completed" && Date.now() - new Date(x.i.completed_at + "Z").getTime() > 600000) return res.status(400).json({ error: "Interview closed" });
+  if (!req.body?.length || req.body.length < 1000) return res.status(400).json({ error: "Empty recording" });
+  const clips = saveClip(x.i.token, +req.params.index, req.body, { seconds: +req.query.seconds || null, mime: req.headers["content-type"] });
+  res.json({ ok: true, clips: clips.length });
+  // Transcribe in the background; the browser's own transcript is used until this lands
+  if (transcribeEnabled()) transcribeClip(x.i.id, +req.params.index).catch((e) => logEvent(x.c.id, "transcribe_failed", `clip ${req.params.index}: ${e.message}`));
+});
+// The candidate can see how their last answer was transcribed (server version once it lands, phone version until then)
+pub.get("/interview/:token/transcript/:index", (req, res) => {
+  const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
+  const idx = +req.params.index, clip = x.i.clips.find((c) => c.index === idx), ans = x.i.transcript.filter((m) => m.role === "user")[idx];
+  const serverText = clip?.transcript; const ready = !transcribeEnabled() || !clip || serverText != null;
+  res.json({ ready, source: serverText != null ? "server" : "phone", text: serverText != null && serverText.length > 2 ? serverText : ans?.content || "", note: ans?.meta?.candidate_note || null, confidence: clip?.confidence ?? null });
+});
+// If the transcript misheard them, the candidate can add a short note. It never replaces the transcript;
+// recruiters see both, and the video is the record.
+pub.post("/interview/:token/transcript/:index/note", (req, res) => {
+  const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
+  if (x.i.status === "completed" && Date.now() - new Date(x.i.completed_at + "Z").getTime() > 900000) return res.status(400).json({ error: "Interview closed" });
+  const idx = +req.params.index, note = String(req.body.note || "").trim().slice(0, 600); if (!note) return res.status(400).json({ error: "Empty note" });
+  let seen = -1; const t = x.i.transcript.map((m) => { if (m.role !== "user") return m; seen++; return seen === idx ? { ...m, meta: { ...(m.meta || {}), candidate_note: note } } : m; });
+  db.prepare("UPDATE interviews SET transcript=? WHERE id=?").run(JSON.stringify(t), x.i.id);
+  logEvent(x.c.id, "transcript_note", `Q${idx + 1}: ${note.slice(0, 80)}`);
+  res.json({ ok: true });
+});
+
+// Streams a clip to a staff member holding a signed token (issued by the authenticated API)
+pub.get("/clip/:t", (req, res) => {
+  const v = verifyClipToken(req.params.t); if (!v) return res.status(403).send("Link expired");
+  const iv = db.prepare("SELECT clips FROM interviews WHERE id=?").get(v.ivId); const c = iv && JSON.parse(iv.clips || "[]").find((k) => k.index === v.index);
+  if (!c) return res.status(404).send("No clip");
+  const buf = readClip(c.file); res.setHeader("Content-Type", c.mime || "video/webm"); res.setHeader("Cache-Control", "private, no-store"); res.send(buf);
+});
 
 // Behaviour signals from the candidate's browser: hidden, blur, paste, copy, faces, camera_denied
 pub.post("/interview/:token/signal", (req, res) => {

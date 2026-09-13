@@ -35,8 +35,9 @@ export default function Setup() {
         <button disabled={!!busy || !to} onClick={() => test("whatsapp", to)}>{busy === "whatsapp" ? "Sending..." : "Send test WhatsApp"}</button>
         <button disabled={!!busy || !email} onClick={() => test("email", email)}>{busy === "email" ? "Sending..." : "Send test email"}</button>
         <button disabled={!!busy || !to} onClick={() => test("sms", to)}>{busy === "sms" ? "Sending..." : "Send test SMS"}</button>
+        <button disabled={!!busy} onClick={() => test("transcribe")}>{busy === "transcribe" ? "Testing..." : "Test transcription"}</button>
       </div>
-      {["ai", "whatsapp", "email", "sms"].map((k) => <Result key={k} k={k} />)}
+      {["ai", "whatsapp", "email", "sms", "transcribe"].map((k) => <Result key={k} k={k} />)}
     </div>
 
     <div className="card">
@@ -59,6 +60,7 @@ export default function Setup() {
       <b>Links to hand out</b>
       <div style={{ marginTop: 6 }}>Careers page for the website: <code>{d.apply_url}</code></div>
       <div>Job feed for Indeed / Google: <code>{d.jobs_feed}</code></div>
+      <div className="muted" style={{ marginTop: 8 }}>Video answers are stored on this server's disk (encrypted). Each 15-minute interview is roughly 40 to 60 MB; a 5 GB disk holds about 100 interviews at any one time, and recordings are deleted after 90 days. Increase the disk in Render if you interview more than that in three months.</div>
     </div>
   </div>;
 }

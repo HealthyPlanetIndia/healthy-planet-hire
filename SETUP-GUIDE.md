@@ -197,6 +197,12 @@ For Zoho or others, use their SMTP host and port instead; the rest is the same.
 
 ## Step 7. Optional extras
 
+- **Accurate transcription (do this one):** create a free account at **deepgram.com** (it comes with
+  about $200 of credit, enough for hundreds of interviews). In the console click **API Keys → Create
+  a New API Key**, copy it, and add `DEEPGRAM_API_KEY` in Render → Environment. Then in the app's
+  Setup page press **Test transcription**. From then on spoken answers are transcribed on the server
+  with proper Hindi-English support instead of relying on the candidate's phone.
+
 - **SMS:** create an account at **msg91.com**, get an Auth Key and an approved 6-letter Sender ID
   (DLT registration is required in India; MSG91 walks you through it). Add `MSG91_AUTHKEY` and
   `MSG91_SENDER` to Variables.

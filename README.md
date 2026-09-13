@@ -87,7 +87,29 @@ Applied → Screened → AI interview → Shortlist → Demo lesson → School i
   volume, integrity outcomes, panel score averages.
 - **Hindi**: recruiter-side labels switch with the हिं/EN button; candidate pages are bilingual.
 
-## Video recordings
+## The AI interview is a video interview
+
+Candidates open the link on a phone or laptop; camera and microphone are required. Maya asks each
+question aloud (browser speech synthesis in the candidate's chosen language), the candidate presses
+Answer and speaks to the camera, and each answer is recorded in the browser and uploaded to the
+server, where it is encrypted with AES-256-GCM before it touches the disk. Spoken words are transcribed
+in the browser (speech recognition; Chrome and Safari on phones) so the written report, integrity
+analysis and role play all work exactly as before. If transcription fails on a device the candidate can
+type alongside the recording. Recruiters watch clips beside the transcript through 30-minute signed
+links; every opening is logged. Clips are deleted after `SNAPSHOT_DAYS` (default 90) and on erasure.
+Roughly 40 to 60 MB per interview; size the disk accordingly.
+
+**Better transcription (recommended):** set `DEEPGRAM_API_KEY` and each recorded answer is
+transcribed on the server (Nova-3, `language=multi`) which handles Indian English and Hindi-English
+code-switching far better than the phone. It runs in the background right after each answer, replaces
+the phone's text in the transcript before the report is written, and shows a confidence score and
+"what the phone heard" beside each clip. Recruiters can re-transcribe an interview and refresh the report
+with one button. The candidate sees the transcription of each answer as soon as it is ready and can
+attach a short note if it misheard them; the note never replaces the transcript (the video is the
+record) but is shown to recruiters and to the report writer. About ₹1 to ₹1.5 per minute of audio, so ₹15 to ₹25 per interview. Set `ALLOW_TEXT_INTERVIEWS=true` to let
+candidates without a camera fall back to typing, or send a typed link deliberately from the profile.
+
+## Video recordings (Daily.co rooms)
 
 Recordings never touch this server. They stay in Daily.co's private cloud storage (encrypted at rest);
 we store only the recording id. When a signed-in recruiter or the assigned hiring manager presses
@@ -145,6 +167,7 @@ history. These are signals, not proof: the recruiter reviews and decides, and th
 | AI screening + interviews | `ANTHROPIC_API_KEY` | Disabled |
 | Video interviews | `DAILY_API_KEY` + webhook | Text and voice interviews only |
 | SMS | MSG91 or Twilio keys | Opens your SMS app |
+| Server transcription | `DEEPGRAM_API_KEY` | Phone's own speech recognition |
 | WhatsApp sending + replies | Meta Business account, Cloud API token, phone number ID, webhook URL | Falls back to wa.me "open chat" links |
 | Email | Any SMTP (Google Workspace, Zoho, Resend) | Falls back to mailto links |
 | Interview links | `PUBLIC_URL` set to your domain | Links point to localhost |

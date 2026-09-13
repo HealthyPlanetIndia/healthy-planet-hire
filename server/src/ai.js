@@ -48,7 +48,7 @@ export async function interviewReport(role, candidate, transcript) {
   const system = `You write fair, evidence-based first-round interview assessments for ${SCHOOL} Score only what the transcript shows; quote or closely paraphrase the candidate in each note. Respond with JSON only:
 {"overall": 0-100, "summary": "2 sentences", "dimensions": [{"name": "", "score": 0-100, "note": "one line citing something the candidate said"}], "strengths": "", "concerns": "", "recommendation": "Advance to school interview | Advance with reservations | Do not advance", "suggested_questions": ["2 questions for the school interview panel"]}
 Use exactly these 4 dimensions: Communication; Role knowledge; Child-centred thinking; Fit with the school's values (relationships, environment, learning from experience).`;
-  const tr = transcript.map((m) => `${m.role === "assistant" ? "Interviewer" : candidate.name}: ${m.content}`).join("\n");
+  const tr = transcript.map((m) => `${m.role === "assistant" ? "Interviewer" : candidate.name}: ${m.content}${m.meta?.candidate_note ? ` [Candidate's note on the transcription: ${m.meta.candidate_note}]` : ""}`).join("\n");
   const r = await c().messages.create({ model: MODEL, max_tokens: 1200, system, messages: [{ role: "user", content: `Role: ${role.title}\nCriteria: ${role.criteria.map((k) => k.text).join("; ")}\n\nTranscript:\n${tr}` }] });
   return { ...parse(text(r)), at: new Date().toISOString() };
 }

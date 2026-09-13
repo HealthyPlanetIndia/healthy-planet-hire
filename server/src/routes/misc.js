@@ -13,10 +13,12 @@ import { smsEnabled } from "../services/sms.js";
 import { rowRule, LANGUAGES } from "../db.js";
 import { handleInbound } from "./webhooks.js";
 import crypto from "crypto";
+import { clipsDiskUsage } from "../services/clips.js";
+import { transcribeEnabled } from "../services/transcribe.js";
 import { createHash } from "crypto";
 
 export const misc = Router();
-misc.get("/status", (req, res) => res.json({ ai: aiEnabled(), whatsapp: waEnabled(), email: mailEnabled(), sms: smsEnabled(), video: videoEnabled(), languages: LANGUAGES, campuses: db.prepare("SELECT DISTINCT campus FROM roles WHERE campus <> '' ORDER BY campus").all().map((r) => r.campus), public_url: process.env.PUBLIC_URL || "http://localhost:5173", followup_days: +(process.env.FOLLOWUP_DAYS || 3), retention_months: +(process.env.RETENTION_MONTHS || 12), snapshot_days: +(process.env.SNAPSHOT_DAYS || 90), stages: STAGES }));
+misc.get("/status", (req, res) => res.json({ transcribe: transcribeEnabled(), video_storage_mb: Math.round(clipsDiskUsage() / 1048576), ai: aiEnabled(), whatsapp: waEnabled(), email: mailEnabled(), sms: smsEnabled(), video: videoEnabled(), languages: LANGUAGES, campuses: db.prepare("SELECT DISTINCT campus FROM roles WHERE campus <> '' ORDER BY campus").all().map((r) => r.campus), public_url: process.env.PUBLIC_URL || "http://localhost:5173", followup_days: +(process.env.FOLLOWUP_DAYS || 3), retention_months: +(process.env.RETENTION_MONTHS || 12), snapshot_days: +(process.env.SNAPSHOT_DAYS || 90), stages: STAGES }));
 misc.get("/templates", (req, res) => res.json(getTemplates()));
 misc.put("/templates", requireStaff, (req, res) => {
   const up = db.prepare("INSERT INTO templates (key, body) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET body = excluded.body");

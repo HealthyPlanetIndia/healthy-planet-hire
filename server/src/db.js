@@ -96,6 +96,8 @@ for (const sql of [
   "ALTER TABLE users ADD COLUMN campuses TEXT",
   "ALTER TABLE interviews ADD COLUMN recording_id TEXT",
   "ALTER TABLE interviews ADD COLUMN transcript_id TEXT",
+  "ALTER TABLE interviews ADD COLUMN clips TEXT DEFAULT '[]'",
+  "ALTER TABLE interviews ADD COLUMN mode TEXT DEFAULT 'video'",
 ]) { try { db.exec(sql); } catch {} }
 
 export const STAGES = ["Applied", "Screened", "AI interview", "Shortlist", "Demo lesson", "School interview", "Offer", "Joined", "Talent pool", "Not now"];
@@ -134,7 +136,7 @@ export const LANGUAGES = { en: "English", hi: "हिन्दी", pa: "ਪੰ�
 export const userCampuses = (u) => { const c = j(u?.campuses); return Array.isArray(c) && c.length ? c : null; }; // null = all campuses
 export const rowEvaluation = (r) => r && { ...r, scores: j(r.scores) };
 export const norm = { phone: (p) => (p || "").replace(/\D/g, "").slice(-10), email: (e) => (e || "").trim().toLowerCase() };
-export const rowInterview = (r) => r && { ...r, transcript: j(r.transcript, []), report: j(r.report), signals: j(r.signals, []), snapshots: j(r.snapshots, []), integrity: j(r.integrity), sessions: j(r.sessions, []) };
+export const rowInterview = (r) => r && { ...r, transcript: j(r.transcript, []), report: j(r.report), signals: j(r.signals, []), snapshots: j(r.snapshots, []), integrity: j(r.integrity), sessions: j(r.sessions, []), clips: j(r.clips, []) };
 
 export function audit(req, summary) {
   db.prepare("INSERT INTO audit (user_id, user_name, method, path, summary) VALUES (?,?,?,?,?)").run(req.user?.id || null, req.user?.name || "public", req.method, req.originalUrl.slice(0, 200), (summary || "").slice(0, 300));
