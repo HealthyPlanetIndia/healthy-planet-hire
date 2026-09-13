@@ -6,7 +6,7 @@ export default function Analytics() {
   const [a, setA] = useState(null);
   useEffect(() => { api("/analytics").then(setA); }, []);
   if (!a) return <div className="muted">Loading...</div>;
-  const funnelStages = a.stages.slice(0, 8);
+  const funnelStages = a.stages.slice(0, 13);
   return <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
     <div className="card">
       <b>Funnel by role</b>

@@ -20,6 +20,7 @@ import Reset from "./pages/Reset.jsx";
 import SharedReport from "./pages/SharedReport.jsx";
 import Automation from "./pages/Automation.jsx";
 import Setup from "./pages/Setup.jsx";
+import WrittenAssessment from "./pages/WrittenAssessment.jsx";
 import { me } from "./api.js";
 
 const Private = ({ children }) => (me() ? children : <Navigate to="/login" replace />);
@@ -35,6 +36,7 @@ createRoot(document.getElementById("root")).render(
       <Route path="/apply/:roleId?" element={<Apply />} />
       <Route path="/reset/:token" element={<Reset />} />
       <Route path="/report/:token" element={<SharedReport />} />
+      <Route path="/written/:token" element={<WrittenAssessment />} />
       <Route path="/" element={<Private><Shell /></Private>}>
         <Route index element={<Dashboard />} />
         <Route path="pipeline" element={<Pipeline />} />

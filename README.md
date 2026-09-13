@@ -32,6 +32,39 @@ created on first start. JWT_SECRET is generated and stored in the data folder if
 `docker compose up -d` does the same in one container with data in `server/data`.
 For local development run `npm run dev` in both folders (web on :5173 proxies /api to :4000).
 
+## The HR process, as written, enforced by the software
+
+The pipeline follows the school's Recruitment and Selection process document step for step:
+
+Applied → Screened → AI interview → Screening call → Shortlist → Leadership interview → Subject
+assessment → Demo lesson → Written assessment → Final review → HR discussion → Offer → Joined
+
+- **Step 1 Manpower requisition.** Principals and hiring managers raise it (role, grade, subject,
+  openings, justification, reporting manager). It stays "requested" and invisible to the public until
+  the Director approves. The home screen shows the Director what is waiting.
+- **Step 2 Sourcing.** Internal job posting first: set a date and the role is hidden from the careers
+  page and job feeds until then. Referrals cannot be saved without the referrer's name.
+- **Step 3 CV screening.** AI screening against the criteria, plus location/distance captured on the
+  application form. After the AI interview, HR records the 10 to 15 minute **screening call**
+  (fit, interest, notice period, expected salary); "Proceed" moves the candidate to Shortlist.
+- **Step 4 Rounds.** Three panel rounds, each with its own rubric and scoring links: Leadership
+  interview (Principal), Subject assessment and Demo lesson (Department Coordinator). Round 4 is a timed
+  **written English assessment** the candidate completes online, graded by AI and reviewable. Round 5
+  **Final review** consolidates every round into one note for the Director; nobody can move to HR
+  discussion or Offer without the Director's recorded approval. Round 6 **HR discussion** captures the
+  agreed remuneration, joining date and policy clarifications, which flow into the letters.
+- **Step 5 Background verification.** Identity, address, credentials, employment history, police
+  verification, POCSO declaration and two references, each with an owner and a file. Offers are blocked
+  until verified, or can be explicitly marked conditional on verification (logged).
+- **Step 6 Offer and documentation.** Offer and appointment letters are drafted from templates with an
+  automatic reference number (HPS/HR/OFR/2026/0001), approved by the Executive Head, then issued by
+  email or printed; every letter appears in the issuance tracker.
+- **Onboarding.** The checklist is split into Pre-boarding, Day 1 induction and Week 1 role
+  orientation, each item owned by HR, IT/Admin or the Reporting Manager. Marking a candidate Joined
+  emails IT/Admin the workstation, email, biometric and ID card request (`ONBOARDING_NOTIFY_EMAIL`).
+
+Attendance, grievances and letters for existing staff are HR-system functions outside recruiting.
+
 ## Automation, assistant and channels
 
 - **Rules** (Settings → Automation): "when a resume scores 70+, send the AI interview", "when moved to

@@ -45,7 +45,14 @@ test("candidate lifecycle: duplicate warning, checks gate blocks offer, admin ov
   assert.equal(c2.duplicates[0].reason, "same phone");
 
   let r = await req(`/candidates/${c1.id}`, { method: "PUT", body: { stage: "Offer" } });
+  assert.equal(r.status, 409); assert.match(r.data.error, /Director/);
+  await req(`/candidates/${c1.id}/final-review`, { method: "POST", body: { decision: "approved", note: "Strong across rounds" } });
+  r = await req(`/candidates/${c1.id}`, { method: "PUT", body: { stage: "Offer" } });
   assert.equal(r.status, 409); assert.ok(r.data.blockers.length > 3);
+  // a conditional offer is allowed with verification pending, and recorded as such
+  r = await req(`/candidates/${c1.id}`, { method: "PUT", body: { stage: "Offer", conditional: true } }); assert.equal(r.status, 200);
+  assert.ok((await req(`/candidates/${c1.id}`)).data.events.some((e) => e.type === "conditional_offer"));
+  await req(`/candidates/${c1.id}`, { method: "PUT", body: { stage: "Final review" } });
 
   const checks = (await req(`/candidates/${c1.id}/checks`)).data;
   for (const ch of checks.filter((k) => k.required && k.category !== "onboarding")) {
@@ -75,7 +82,7 @@ test("candidate self-booking takes a slot, confirms, and blocks double booking",
   const again = await req(`/public/book/${tok}`, { method: "POST", body: { slot_id: page.open[0].id }, auth: false });
   assert.equal(again.status, 409);
   const after = (await req(`/candidates/${c.id}`)).data;
-  assert.equal(after.stage, "School interview"); assert.ok(after.interview_at);
+  assert.equal(after.stage, "Leadership interview"); assert.ok(after.interview_at);
   const ics = (await req(`/candidates/${c.id}/calendar.ics`, { raw: true })).data; assert.match(ics, /BEGIN:VEVENT/);
 });
 
@@ -99,7 +106,7 @@ test("hiring manager sees only shortlisted candidates for assigned roles and can
   const mgr = (await req("/auth/login", { method: "POST", body: { email: "p@hps.test", password: "password123" }, auth: false })).data.token;
   const saved = token; token = mgr;
   const list = (await req("/candidates")).data;
-  assert.ok(list.length > 0); assert.ok(list.every((c) => !["Applied", "Screened", "AI interview"].includes(c.stage)));
+  assert.ok(list.length > 0); assert.ok(list.every((c) => !["Applied", "Screened", "AI interview", "Screening call"].includes(c.stage)));
   const r = await req(`/candidates/${list[0].id}`, { method: "PUT", body: { stage: "Not now" } });
   assert.equal(r.status, 403);
   assert.equal((await req("/candidates", { method: "POST", body: { name: "X" } })).status, 403);
@@ -223,4 +230,45 @@ test("candidate can see their transcription and add a correction note", async ()
   const n = await req(`/public/interview/${iv.token}/transcript/0/note`, { method: "POST", body: { note: "I said inquiry, not enquiry" }, auth: false });
   assert.equal(n.status, 200);
   const events = (await req(`/candidates/${c.id}`)).data.events; assert.ok(events.some((e) => e.type === "transcript_note"));
+});
+
+
+test("HR process: requisition needs Director approval before it is public", async () => {
+  const mgr = (await req("/auth/login", { method: "POST", body: { email: "p@hps.test", password: "password123" }, auth: false })).data.token;
+  const saved = token; token = mgr;
+  const bad = await req("/roles", { method: "POST", body: { title: "Maths Teacher", justification: "" } }); assert.equal(bad.status, 400);
+  const rq = (await req("/roles", { method: "POST", body: { title: "Maths Teacher Grade 6", department: "Middle", grade: "6", subject: "Maths", justification: "Retirement of Mr Sharma", criteria: [], questions: ["Why maths?"] } })).data;
+  assert.equal(rq.status, "requested");
+  token = saved;
+  const pub = (await req("/public/roles", { auth: false })).data; assert.ok(!pub.some((r) => r.id === rq.id));
+  const pending = (await req("/requisitions")).data; assert.ok(pending.some((r) => r.id === rq.id && r.requested_by_name === "Principal P"));
+  const ok = (await req(`/roles/${rq.id}/approve`, { method: "POST", body: { decision: "approved" } })).data; assert.equal(ok.status, "open"); assert.ok(ok.approved_by_name);
+  assert.ok((await req("/public/roles", { auth: false })).data.some((r) => r.id === rq.id));
+});
+
+test("HR process: referrals need a referrer; screening call moves the candidate; written assessment records", async () => {
+  const bad = await req("/candidates", { method: "POST", body: { name: "Ref Person", role_id: 1, source: "Referral" } }); assert.equal(bad.status, 500);
+  const c = (await req("/candidates", { method: "POST", body: { name: "Ref Person", role_id: 1, source: "Referral", referrer: "Ms Gupta", location: "Indirapuram, 6 km" } })).data; assert.equal(c.referrer, "Ms Gupta");
+  await req(`/candidates/${c.id}`, { method: "PUT", body: { stage: "Screening call" } });
+  const sc = (await req(`/candidates/${c.id}/screening-call`, { method: "PUT", body: { outcome: "proceed", notes: "Interested, 30 days notice", notice_period: "30 days", expected_salary: "60k" } })).data;
+  assert.equal(sc.stage, "Shortlist"); assert.equal(sc.notice_period, "30 days"); assert.equal(sc.screening_call.by, "Arunabh Singh");
+  const w = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: { kind: "written" } })).data; assert.equal(w.kind, "written");
+  const page = (await req(`/public/written/${w.token}`, { auth: false })).data; assert.match(page.prompt, /homework/);
+  await req(`/public/written/${w.token}/start`, { method: "POST", body: {}, auth: false });
+  const sub = await req(`/public/written/${w.token}/submit`, { method: "POST", body: { text: "Dear parents, from this term we would like to change how homework works. ".repeat(3) }, auth: false }); assert.equal(sub.status, 200);
+  const full = (await req(`/candidates/${c.id}`)).data; assert.equal(full.interviews[0].kind, "written"); assert.equal(full.interviews[0].status, "completed");
+  const cons = (await req(`/candidates/${c.id}/consolidated`)).data; assert.equal(cons.rounds.length, 3); assert.match(cons.material, /Written assessment: submitted/);
+});
+
+test("HR process: letters get reference numbers, need Executive Head approval before issue, and are tracked", async () => {
+  const c = (await req("/candidates", { method: "POST", body: { name: "Letter Person", role_id: 1, email: "lp@x.in" } })).data;
+  await req(`/candidates/${c.id}`, { method: "PUT", body: { salary: "INR 50,000 per month", join_date: "2030-06-01" } });
+  const l = (await req(`/candidates/${c.id}/letters`, { method: "POST", body: { type: "offer" } })).data;
+  assert.match(l.ref_no, /^HPS\/HR\/OFR\/\d{4}\/0001$/); assert.match(l.body, /50,000/); assert.match(l.body, /Primary Coordinator/); assert.match(l.body, new RegExp(l.ref_no.replace(/\//g, "\\/")));
+  const notYet = await req(`/candidates/${c.id}/letters/${l.id}/issue`, { method: "POST", body: { via: "print" } }); assert.equal(notYet.status, 400);
+  await req(`/candidates/${c.id}/letters/${l.id}/approve`, { method: "POST", body: {} });
+  const issued = (await req(`/candidates/${c.id}/letters/${l.id}/issue`, { method: "POST", body: { via: "print" } })).data; assert.equal(issued.status, "issued");
+  const l2 = (await req(`/candidates/${c.id}/letters`, { method: "POST", body: { type: "appointment" } })).data; assert.match(l2.ref_no, /APT\/\d{4}\/0001$/);
+  const tracker = (await req("/letters")).data; assert.ok(tracker.length >= 2); assert.ok(tracker.some((x) => x.ref_no === l.ref_no && x.status === "issued"));
+  const checks = (await req(`/candidates/${c.id}/checks`)).data; assert.ok(checks.some((k) => k.key === "it_notified" && k.owner === "IT/Admin" && k.phase === "Pre-boarding")); assert.ok(checks.some((k) => k.key === "employment"));
 });

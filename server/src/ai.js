@@ -62,6 +62,18 @@ export async function analyseAnswers(role, candidate, transcript) {
   return parse(text(r));
 }
 
+export async function gradeWriting(role, candidate, prompt, essay) {
+  const system = `You assess a written English task for teaching and school staff at ${SCHOOL} Indian English conventions are correct English; do not penalise them. Judge only the text. Respond with JSON only: {"overall": 0-100, "summary": "2 sentences", "dimensions": [{"name": "Grammar and accuracy", "score": 0-100, "note": ""}, {"name": "Clarity and structure", "score": 0-100, "note": ""}, {"name": "Tone for parents and colleagues", "score": 0-100, "note": ""}, {"name": "Completeness against the task", "score": 0-100, "note": ""}], "strengths": "", "concerns": "", "recommendation": "Meets the standard | Borderline | Below the standard", "word_count": 0}`;
+  const r = await c().messages.create({ model: MODEL, max_tokens: 900, system, messages: [{ role: "user", content: `Role: ${role.title}\nTask given:\n${prompt}\n\nCandidate's text:\n${essay}` }] });
+  return { ...parse(text(r)), at: new Date().toISOString() };
+}
+
+export async function consolidatedSummary(role, candidate, material) {
+  const system = `You prepare the Final Review note for the Director of ${SCHOOL} Consolidate the evidence from every round into a fair, concise recommendation. Note disagreements between panelists and any gaps. Do not invent scores. Plain prose, no lists, no dashes as punctuation, under 220 words, ending with one sentence that begins "Recommendation:".`;
+  const r = await c().messages.create({ model: MODEL, max_tokens: 600, system, messages: [{ role: "user", content: `Candidate: ${candidate.name} for ${role.title}\n\n${material}` }] });
+  return text(r).trim();
+}
+
 export async function draftJobDescription(role) {
   const r = await c().messages.create({ model: MODEL, max_tokens: 900, system: `You write concise, warm job postings for ${SCHOOL} Plain language, no buzzwords, no dashes as punctuation. Sections: About the role, What you will do, What we look for, How to apply. Under 300 words.`, messages: [{ role: "user", content: `Role: ${role.title} (${role.department}, ${role.campus}). Criteria: ${role.criteria.map((k) => `${k.text}${k.must ? " (required)" : ""}`).join("; ")}` }] });
   return text(r);

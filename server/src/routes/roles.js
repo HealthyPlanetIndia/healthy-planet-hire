@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { db, rowRole, ACTIVE_STAGES, audit, DEFAULT_RUBRIC, userCampuses } from "../db.js";
 import { draftJobDescription } from "../ai.js";
-import { requireStaff } from "../auth.js";
+import { requireStaff, requireAdmin } from "../auth.js";
 
 export const roles = Router();
 const get = (id) => db.prepare("SELECT * FROM roles WHERE id = ?").get(id);
-const withCounts = (r) => ({ ...rowRole(r), manager: r.manager_id ? db.prepare("SELECT name FROM users WHERE id=?").get(r.manager_id)?.name : null,
+const nameOf = (id) => (id ? db.prepare("SELECT name FROM users WHERE id=?").get(id)?.name : null);
+const withCounts = (r) => ({ ...rowRole(r), manager: nameOf(r.manager_id), requested_by_name: nameOf(r.requested_by), approved_by_name: nameOf(r.approved_by),
   active: db.prepare(`SELECT COUNT(*) n FROM candidates WHERE role_id = ? AND anonymized=0 AND stage IN (${ACTIVE_STAGES.map(() => "?").join(",")})`).get(r.id, ...ACTIVE_STAGES).n,
   open_slots: db.prepare("SELECT COUNT(*) n FROM slots WHERE role_id=? AND candidate_id IS NULL AND starts_at > datetime('now')").get(r.id).n });
 
@@ -15,16 +16,30 @@ roles.get("/", (req, res) => {
   const camp = userCampuses(req.user); if (camp) { where.push(`campus IN (${camp.map(() => "?").join(",")})`); p.push(...camp); }
   res.json(db.prepare(`SELECT * FROM roles${where.length ? " WHERE " + where.join(" AND ") : ""} ORDER BY status = 'open' DESC, created_at DESC`).all(...p).map(withCounts));
 });
-roles.post("/", requireStaff, (req, res) => {
-  const { title, department = "", campus = "Noida", openings = 1, criteria = [], questions = [], rubric = DEFAULT_RUBRIC, manager_id = null, salary_band = "", description = "", interview_mode = "standard", scenario = "" } = req.body;
+// Step 1 Manpower Requisition: anyone on staff (including Principals as hiring managers) raises it; the Director approves before it is posted.
+roles.post("/", (req, res) => {
+  const { title, department = "", campus = "Noida", openings = 1, criteria = [], questions = [], rubric = DEFAULT_RUBRIC, rubrics = null, manager_id = null, salary_band = "", description = "", interview_mode = "standard", scenario = "", grade = "", subject = "", justification = "", reporting_manager = "", ijp_until = null, written_prompt = null } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: "Title is required" });
-  const r = db.prepare("INSERT INTO roles (title, department, campus, openings, criteria, questions, rubric, manager_id, salary_band, description, interview_mode, scenario) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(title.trim(), department, campus, openings, JSON.stringify(criteria), JSON.stringify(questions), JSON.stringify(rubric), manager_id || null, salary_band, description, interview_mode, scenario);
-  audit(req, `created role ${title}`); res.status(201).json(withCounts(get(r.lastInsertRowid)));
+  if (!justification?.trim() && req.user.role !== "admin") return res.status(400).json({ error: "A justification is required on the manpower requisition" });
+  const status = req.user.role === "admin" ? "open" : "requested";
+  const r = db.prepare("INSERT INTO roles (title, department, campus, openings, criteria, questions, rubric, rubrics, manager_id, salary_band, description, interview_mode, scenario, grade, subject, justification, requested_by, approved_by, approved_at, reporting_manager, ijp_until, written_prompt, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(title.trim(), department, campus, openings, JSON.stringify(criteria), JSON.stringify(questions), JSON.stringify(rubric), rubrics ? JSON.stringify(rubrics) : null, manager_id || (req.user.role === "manager" ? req.user.id : null), salary_band, description, interview_mode, scenario, grade, subject, justification, req.user.id, status === "open" ? req.user.id : null, status === "open" ? new Date().toISOString() : null, reporting_manager, ijp_until, written_prompt, status);
+  audit(req, `${status === "open" ? "created" : "requested"} role ${title}`); res.status(201).json(withCounts(get(r.lastInsertRowid)));
 });
-roles.put("/:id", requireStaff, (req, res) => {
+roles.post("/:id/approve", requireAdmin, (req, res) => {
   const cur = get(req.params.id); if (!cur) return res.status(404).json({ error: "Role not found" });
+  const ok = req.body.decision !== "rejected";
+  db.prepare("UPDATE roles SET status=?, approved_by=?, approved_at=datetime('now') WHERE id=?").run(ok ? "open" : "rejected", req.user.id, cur.id);
+  audit(req, `${ok ? "approved" : "rejected"} requisition ${cur.title}${req.body.note ? `: ${req.body.note}` : ""}`);
+  res.json(withCounts(get(cur.id)));
+});
+roles.put("/:id", (req, res) => {
+  const cur = get(req.params.id); if (!cur) return res.status(404).json({ error: "Role not found" });
+  if (req.user.role === "manager" && (cur.requested_by !== req.user.id || cur.status !== "requested")) return res.status(403).json({ error: "Hiring managers can edit only their own pending requisitions" });
   const b = { ...rowRole(cur), ...req.body };
-  db.prepare("UPDATE roles SET title=?, department=?, campus=?, openings=?, status=?, criteria=?, questions=?, rubric=?, manager_id=?, salary_band=?, description=?, interview_mode=?, scenario=? WHERE id=?").run(b.title, b.department, b.campus, b.openings, b.status, JSON.stringify(b.criteria), JSON.stringify(b.questions), JSON.stringify(b.rubric), b.manager_id || null, b.salary_band || "", b.description || "", b.interview_mode || "standard", b.scenario || "", req.params.id);
+  if (req.body.status === "open" && cur.status !== "open" && req.user.role !== "admin") return res.status(403).json({ error: "Only the Director can approve a requisition" });
+  db.prepare("UPDATE roles SET title=?, department=?, campus=?, openings=?, status=?, criteria=?, questions=?, rubric=?, rubrics=?, manager_id=?, salary_band=?, description=?, interview_mode=?, scenario=?, grade=?, subject=?, justification=?, reporting_manager=?, ijp_until=?, written_prompt=? WHERE id=?")
+    .run(b.title, b.department, b.campus, b.openings, b.status, JSON.stringify(b.criteria), JSON.stringify(b.questions), JSON.stringify(b.rubrics?.["Demo lesson"] || b.rubric), JSON.stringify(b.rubrics || {}), b.manager_id || null, b.salary_band || "", b.description || "", b.interview_mode || "standard", b.scenario || "", b.grade || "", b.subject || "", b.justification || "", b.reporting_manager || "", b.ijp_until || null, req.body.written_prompt ?? cur.written_prompt, req.params.id);
   audit(req, `updated role ${req.params.id}`); res.json(withCounts(get(req.params.id)));
 });
 roles.delete("/:id", requireStaff, (req, res) => { db.prepare("DELETE FROM roles WHERE id = ?").run(req.params.id); audit(req, `deleted role ${req.params.id}`); res.json({ ok: true }); });
@@ -37,7 +52,7 @@ roles.get("/:id/slots", (req, res) => res.json(db.prepare("SELECT s.*, c.name ca
 roles.post("/:id/slots", requireStaff, (req, res) => {
   // body: { slots: [{starts_at, ends_at}], stage, location } or { date, times: ["10:00","11:00"], minutes, stage, location }
   const ins = db.prepare("INSERT INTO slots (role_id, stage, starts_at, ends_at, location) VALUES (?,?,?,?,?)");
-  const stage = req.body.stage || "School interview", loc = req.body.location || "Healthy Planet School, Noida";
+  const stage = req.body.stage || "Leadership interview", loc = req.body.location || "Healthy Planet School, Noida";
   let list = req.body.slots || [];
   if (req.body.date && req.body.times) list = req.body.times.map((t) => { const s = new Date(`${req.body.date}T${t}:00+05:30`); return { starts_at: s.toISOString(), ends_at: new Date(s.getTime() + (req.body.minutes || 45) * 60000).toISOString() }; });
   for (const s of list) ins.run(req.params.id, stage, s.starts_at, s.ends_at, loc);

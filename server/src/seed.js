@@ -17,6 +17,7 @@ if (!db.prepare("SELECT 1 FROM roles LIMIT 1").get()) {
     { id: "c4", text: "Experience with inquiry or project-based learning", must: false },
     { id: "c5", text: "Comfortable using digital tools in class", must: false }]),
     JSON.stringify(["Tell me about a lesson that did not go to plan and what you did next.", "How do you get a quiet child to participate?", "Describe how you communicate with a parent who is unhappy.", "What does a healthy classroom look like to you?", "Why Healthy Planet School?"]));
+  db.prepare("UPDATE roles SET grade='Grades 3 to 5', subject='General (Primary)', justification='Two sections added in Grade 4 for 2026-27', reporting_manager='Primary Coordinator' WHERE id=?").run(r1.lastInsertRowid);
   db.prepare("UPDATE roles SET interview_mode='interactive', scenario=? WHERE id=?").run("A parent, Mrs Kapoor, has come in unannounced at pick-up time. She is upset that her son Aarav (Grade 4) came home saying another child called him 'stupid' during group work and the teacher 'did nothing'. She wants to know what the candidate, as the class teacher, will do about it right now.", r1.lastInsertRowid);
   const faq = db.prepare("INSERT INTO faqs (question, answer) VALUES (?,?)");
   faq.run("Where is the school?", "Healthy Planet School is in Noida, Uttar Pradesh. The exact address and a map link are in your interview confirmation message.");

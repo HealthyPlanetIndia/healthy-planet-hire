@@ -46,12 +46,23 @@ export default function Settings() {
         {ret && <div className="muted" style={{ marginTop: 6 }}>Cleared photos from {ret.snapshotsCleared} interview{ret.snapshotsCleared === 1 ? "" : "s"}, anonymised {ret.anonymized} candidate{ret.anonymized === 1 ? "" : "s"}.</div>}
         {auditLog && <div style={{ marginTop: 10, maxHeight: 300, overflowY: "auto", fontSize: 12 }}>{auditLog.map((a) => <div key={a.id} className="row" style={{ justifyContent: "space-between", padding: "3px 0", borderTop: "1px solid var(--line)" }}><span>{a.user_name}: {a.summary}</span><span className="muted">{new Date(a.created_at + "Z").toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>)}</div>}
       </div>}
+      <LetterTracker />
       {status && <div className="card" style={{ fontSize: 13 }}>
         <b>Connections</b>
+        <div className="muted" style={{ marginTop: 6 }}>Onboarding notifications to IT/Admin: {status.onboarding_email ? <code>{status.onboarding_email}</code> : "not set (add ONBOARDING_NOTIFY_EMAIL)"}. When a candidate is moved to Joined, IT/Admin receive the workstation, email, biometric and ID card request automatically.</div>
         <div style={{ marginTop: 6 }}>AI: {status.ai ? "connected" : "not set"} · WhatsApp API: {status.whatsapp ? "connected" : "not set"} · Email: {status.email ? "connected" : "not set"} · SMS: {status.sms ? "connected" : "not set"} · Video (Daily.co): {status.video ? "connected" : "not set"}</div>
         <div className="muted" style={{ marginTop: 6 }}>Public pages you can share: <code>{status.public_url}/apply</code> for the careers page (embed it in an iframe or link to it), and <code>{status.public_url}/api/public/jobs.xml</code> is an Indeed-compatible job feed for open roles.</div>
         <div className="muted" style={{ marginTop: 6 }}>These are configured in <code>server/.env</code> by whoever hosts the app. Until WhatsApp and email are connected, sending opens the message in your own WhatsApp or mail app and logs it here.</div>
       </div>}
     </div>
   );
+}
+
+function LetterTracker() {
+  const [rows, setRows] = useState(null);
+  return <div className="card" style={{ fontSize: 13 }}>
+    <div className="row" style={{ justifyContent: "space-between" }}><b>Letter issuance tracker</b><button className="small" onClick={() => api("/letters").then(setRows)}>{rows ? "Refresh" : "Show"}</button></div>
+    <div className="muted" style={{ marginTop: 4 }}>Every offer and appointment letter with its reference number, approver and issue date. Experience, relieving, warning and NOC letters for existing staff belong to the HR system, not recruiting.</div>
+    {rows && <div style={{ marginTop: 8, maxHeight: 300, overflowY: "auto" }}>{rows.length === 0 && <div className="muted">No letters yet.</div>}{rows.map((l) => <div key={l.id} className="row" style={{ justifyContent: "space-between", padding: "4px 0", borderTop: "1px solid var(--line)" }}><span><code>{l.ref_no}</code> · {l.candidate} · <span style={{ textTransform: "capitalize" }}>{l.type}</span></span><span className="muted">{l.status}{l.approved_by_name ? ` · ${l.approved_by_name}` : ""}{l.issued_at ? ` · ${new Date(l.issued_at + "Z").toLocaleDateString("en-IN")}` : ""}</span></div>)}</div>}
+  </div>;
 }

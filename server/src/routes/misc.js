@@ -18,7 +18,7 @@ import { transcribeEnabled } from "../services/transcribe.js";
 import { createHash } from "crypto";
 
 export const misc = Router();
-misc.get("/status", (req, res) => res.json({ transcribe: transcribeEnabled(), video_storage_mb: Math.round(clipsDiskUsage() / 1048576), ai: aiEnabled(), whatsapp: waEnabled(), email: mailEnabled(), sms: smsEnabled(), video: videoEnabled(), languages: LANGUAGES, campuses: db.prepare("SELECT DISTINCT campus FROM roles WHERE campus <> '' ORDER BY campus").all().map((r) => r.campus), public_url: process.env.PUBLIC_URL || "http://localhost:5173", followup_days: +(process.env.FOLLOWUP_DAYS || 3), retention_months: +(process.env.RETENTION_MONTHS || 12), snapshot_days: +(process.env.SNAPSHOT_DAYS || 90), stages: STAGES }));
+misc.get("/status", (req, res) => res.json({ onboarding_email: process.env.ONBOARDING_NOTIFY_EMAIL || null, rounds: ["Leadership interview", "Subject assessment", "Demo lesson"], transcribe: transcribeEnabled(), video_storage_mb: Math.round(clipsDiskUsage() / 1048576), ai: aiEnabled(), whatsapp: waEnabled(), email: mailEnabled(), sms: smsEnabled(), video: videoEnabled(), languages: LANGUAGES, campuses: db.prepare("SELECT DISTINCT campus FROM roles WHERE campus <> '' ORDER BY campus").all().map((r) => r.campus), public_url: process.env.PUBLIC_URL || "http://localhost:5173", followup_days: +(process.env.FOLLOWUP_DAYS || 3), retention_months: +(process.env.RETENTION_MONTHS || 12), snapshot_days: +(process.env.SNAPSHOT_DAYS || 90), stages: STAGES }));
 misc.get("/templates", (req, res) => res.json(getTemplates()));
 misc.put("/templates", requireStaff, (req, res) => {
   const up = db.prepare("INSERT INTO templates (key, body) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET body = excluded.body");
@@ -74,6 +74,11 @@ misc.get("/docs", (req, res) => res.json({ auth: "Authorization: Bearer <jwt> fr
 }, webhooks: { whatsapp: "/api/webhooks/whatsapp", daily: "/api/public/webhooks/daily" } }));
 
 misc.put("/users/:id/campuses", requireAdmin, (req, res) => { db.prepare("UPDATE users SET campuses=? WHERE id=?").run(req.body.campuses?.length ? JSON.stringify(req.body.campuses) : null, req.params.id); audit(req, `campuses for user ${req.params.id}`); res.json({ ok: true }); });
+
+// Letter issuance tracker (all letters, for HR)
+misc.get("/letters", requireStaff, (req, res) => res.json(db.prepare("SELECT l.id, l.type, l.ref_no, l.status, l.issued_at, l.issued_via, l.approved_at, l.created_at, c.name candidate, u.name approved_by_name FROM letters l LEFT JOIN candidates c ON c.id=l.candidate_id LEFT JOIN users u ON u.id=l.approved_by ORDER BY l.id DESC LIMIT 500").all()));
+// Requisitions awaiting the Director
+misc.get("/requisitions", requireAdmin, (req, res) => res.json(db.prepare("SELECT r.id, r.title, r.department, r.campus, r.grade, r.subject, r.openings, r.justification, r.created_at, u.name requested_by_name FROM roles r LEFT JOIN users u ON u.id=r.requested_by WHERE r.status='requested' ORDER BY r.created_at").all()));
 
 misc.get("/audit", requireAdmin, (req, res) => res.json(db.prepare("SELECT * FROM audit ORDER BY id DESC LIMIT 300").all()));
 misc.post("/retention/run", requireAdmin, (req, res) => { audit(req, "ran retention"); res.json(runRetention()); });

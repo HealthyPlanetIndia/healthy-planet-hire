@@ -5,7 +5,7 @@ import { transcribeEnabled, transcribeClip, transcribeAllPending } from "../serv
 import { db, rowInterview, rowCandidate, rowRole, rowEvaluation, logEvent } from "../db.js";
 import { getTemplates, fill, deliver } from "../services/messaging.js";
 import { transcriptText } from "../services/video.js";
-import { interviewTurn, interviewReport, analyseAnswers, aiEnabled } from "../ai.js";
+import { interviewTurn, interviewReport, analyseAnswers, aiEnabled, gradeWriting } from "../ai.js";
 import { fire } from "../services/rules.js";
 import { LANGUAGES } from "../db.js";
 import { ruleBasedFlags, combine } from "../services/integrity.js";
@@ -154,11 +154,36 @@ pub.post("/video/:token/done", (req, res) => {
   logEvent(x.c.id, "interview_completed", "video; waiting for recording and transcript"); res.json({ ok: true });
 });
 
+// Round 4: written English assessment, done by the candidate on their own device with a timer
+pub.get("/written/:token", (req, res) => {
+  const x = load(req.params.token); if (!x || x.i.kind !== "written") return res.status(404).json({ error: "This link is not valid" });
+  const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, prompt: x.r.written_prompt, minutes: 30, started_at: x.i.started_at, text: x.i.transcript.find((m) => m.role === "user")?.content || "" });
+});
+pub.post("/written/:token/start", (req, res) => {
+  const x = load(req.params.token); if (!x || x.i.kind !== "written") return res.status(404).json({ error: "Invalid link" });
+  if (x.i.status === "pending") db.prepare("UPDATE interviews SET status='in_progress', started_at=datetime('now'), transcript=? WHERE id=?").run(JSON.stringify([{ role: "assistant", content: x.r.written_prompt, at: Date.now() }]), x.i.id);
+  res.json({ ok: true, started_at: new Date().toISOString() });
+});
+pub.post("/written/:token/submit", async (req, res, next) => {
+  try {
+    const x = load(req.params.token); if (!x || x.i.kind !== "written") return res.status(404).json({ error: "Invalid link" });
+    if (x.i.status === "completed") return res.status(400).json({ error: "Already submitted" });
+    const essay = String(req.body.text || "").trim(); if (essay.length < 40) return res.status(400).json({ error: "Please write a little more before submitting" });
+    const startedAt = x.i.started_at ? new Date(x.i.started_at + "Z").getTime() : Date.now();
+    const transcript = [{ role: "assistant", content: x.r.written_prompt }, { role: "user", content: essay, at: Date.now(), meta: { seconds: Math.round((Date.now() - startedAt) / 1000) } }];
+    db.prepare("UPDATE interviews SET status='completed', completed_at=datetime('now'), transcript=? WHERE id=?").run(JSON.stringify(transcript), x.i.id);
+    logEvent(x.c.id, "written_submitted", `${essay.split(/\s+/).length} words`);
+    res.json({ ok: true });
+    if (aiEnabled()) { try { const rep = await gradeWriting(x.r, x.c, x.r.written_prompt, essay); const fresh = load(x.i.token).i; const integ = combine(ruleBasedFlags({ ...fresh, transcript }), null); db.prepare("UPDATE interviews SET report=?, integrity=? WHERE id=?").run(JSON.stringify(rep), JSON.stringify(integ), x.i.id); logEvent(x.c.id, "written_graded", `${rep.overall}: ${rep.recommendation}`); } catch (e) { logEvent(x.c.id, "written_grade_failed", e.message); } }
+  } catch (e) { next(e); }
+});
+
 // Panel scoring form (demo lesson / school interview), no login needed
 pub.get("/score/:token", (req, res) => {
   const e = rowEvaluation(db.prepare("SELECT * FROM evaluations WHERE token=?").get(req.params.token)); if (!e) return res.status(404).json({ error: "This scoring link is not valid" });
   const c = db.prepare("SELECT name, role_id FROM candidates WHERE id=?").get(e.candidate_id), r = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
-  res.json({ candidate: c.name, role: r.title, stage: e.stage, panelist: e.panelist, rubric: r.rubric, submitted: !!e.submitted_at, scores: e.scores, comment: e.comment, recommendation: e.recommendation });
+  res.json({ candidate: c.name, role: r.title, stage: e.stage, panelist: e.panelist, rubric: r.rubrics[e.stage] || r.rubric, submitted: !!e.submitted_at, scores: e.scores, comment: e.comment, recommendation: e.recommendation });
 });
 pub.post("/score/:token", (req, res) => {
   const e = db.prepare("SELECT * FROM evaluations WHERE token=?").get(req.params.token); if (!e) return res.status(404).json({ error: "Invalid link" });
@@ -201,7 +226,7 @@ pub.get("/report/:token", (req, res) => {
   const r = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
   const iv = db.prepare("SELECT * FROM interviews WHERE candidate_id=? AND report IS NOT NULL ORDER BY created_at DESC LIMIT 1").get(c.id);
   const evals = db.prepare("SELECT panelist, stage, scores, comment, recommendation FROM evaluations WHERE candidate_id=? AND submitted_at IS NOT NULL").all(c.id).map(rowEvaluation);
-  res.json({ name: c.name, role: r?.title, campus: r?.campus, stage: c.stage, criteria: r?.criteria || [], rubric: r?.rubric || [], screening: c.screening, interview: iv ? { report: JSON.parse(iv.report), integrity: iv.integrity ? JSON.parse(iv.integrity).risk : null, kind: iv.kind } : null, evaluations: evals, resume_excerpt: (c.resume_text || "").slice(0, 1500) });
+  res.json({ name: c.name, role: r?.title, campus: r?.campus, stage: c.stage, criteria: r?.criteria || [], rubric: r?.rubric || [], rubrics: r?.rubrics || {}, screening: c.screening, interview: iv ? { report: JSON.parse(iv.report), integrity: iv.integrity ? JSON.parse(iv.integrity).risk : null, kind: iv.kind } : null, evaluations: evals, resume_excerpt: (c.resume_text || "").slice(0, 1500) });
 });
 
 // Daily.co webhooks: recording ready, transcript ready
@@ -227,16 +252,17 @@ pub.post("/webhooks/daily", async (req, res) => {
 // Indeed/Google-for-Jobs compatible XML feed of open roles
 pub.get("/jobs.xml", (req, res) => {
   const base = (process.env.PUBLIC_URL || "").replace(/\/$/, ""), esc = (s) => `<![CDATA[${s || ""}]]>`;
-  const rows = db.prepare("SELECT * FROM roles WHERE status='open'").all().map(rowRole);
+  const rows = db.prepare("SELECT * FROM roles WHERE status='open' AND (ijp_until IS NULL OR ijp_until < date('now'))").all().map(rowRole);
   res.type("application/xml").send(`<?xml version="1.0" encoding="utf-8"?><source><publisher>Healthy Planet School</publisher><publisherurl>${base}</publisherurl>${rows.map((r) => `<job><title>${esc(r.title)}</title><date>${esc(r.created_at)}</date><referencenumber>${r.id}</referencenumber><url>${esc(`${base}/apply/${r.id}`)}</url><company>Healthy Planet School</company><city>${esc(r.campus)}</city><state>Uttar Pradesh</state><country>IN</country><description>${esc(r.description || r.criteria.map((c) => c.text).join(". "))}</description><jobtype>fulltime</jobtype>${r.salary_band ? `<salary>${esc(r.salary_band)}</salary>` : ""}</job>`).join("")}</source>`);
 });
 
 // Careers-page form can post straight here
 pub.post("/apply", (req, res) => {
-  const { role_id, name, phone, email, resume_text } = req.body;
+  const { role_id, name, phone, email, resume_text, location = "", current_employer = "", expected_salary = "", notice_period = "", referrer = "", internal = false } = req.body;
   if (!name || !role_id) return res.status(400).json({ error: "Name and role are required" });
-  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, booking_token) VALUES (?,?,?,?,'Careers page',?,?)").run(role_id, name, phone || "", email || "", resume_text || "", Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const source = internal ? "Internal (IJP)" : referrer ? "Referral" : "Careers page";
+  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, booking_token, location, current_employer, expected_salary, notice_period, referrer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(role_id, name, phone || "", email || "", source, resume_text || "", Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer);
   logEvent(r.lastInsertRowid, "created", "via careers page");
   res.status(201).json({ ok: true });
 });
-pub.get("/roles", (req, res) => res.json(db.prepare("SELECT id, title, department, campus, description, salary_band FROM roles WHERE status = 'open'").all()));
+pub.get("/roles", (req, res) => res.json(db.prepare("SELECT id, title, department, campus, description, salary_band, grade, subject FROM roles WHERE status = 'open' AND (ijp_until IS NULL OR ijp_until < date('now'))").all()));

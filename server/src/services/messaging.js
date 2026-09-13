@@ -9,15 +9,18 @@ export const DEFAULT_TEMPLATES = {
   Shortlist: "Hello {name}, good news. You have been shortlisted for {role} at Healthy Planet School and we would like to meet you at the campus. Which of these slots works for you? {slots}",
   "School interview": "Hello {name}, a reminder about your interview for {role} at Healthy Planet School on {slots}. Please bring your original certificates. Reply here if anything changes.",
   Offer: "Hello {name}, we are delighted to offer you the {role} position at Healthy Planet School. The formal offer letter follows by email. Please confirm your joining date so we can begin onboarding.",
-  Joined: "Welcome to Healthy Planet School, {name}! Your first day is {join_date}. Report to the front office at 8:15 am; the HR team will meet you there.",
+  Joined: "Welcome to Healthy Planet School, {name}! Your first day is {join_date}. Please report to the front office at the {campus} campus at 8:15 am; the HR team will meet you there. Please carry: original ID proof, address proof, educational certificates, previous employment documents and 4 passport-size photographs.",
   "Talent pool": "Hello {name}, thank you for your interest in {role} at Healthy Planet School. We cannot proceed right now, but we would like to keep your profile for upcoming openings and will reach out when a suitable role comes up.",
   "Not now": "Hello {name}, thank you for taking the time to apply for {role} at Healthy Planet School. After careful consideration we will not be moving forward at this stage. We wish you the very best.",
   followup: "Hello {name}, just following up on my earlier message about {role} at Healthy Planet School. Do let me know if you are still interested and when we could speak.",
   followup_2: "Hello {name}, checking in once more about the {role} position at Healthy Planet School. If the timing is not right, no problem at all, just let us know and we will keep your profile for later.",
   followup_3: "Hello {name}, this is our last note about {role} at Healthy Planet School. We will keep your profile in our talent pool and reach out for future openings. Wishing you the very best.",
   needs_human: "Thanks {name}, one of our team will get back to you personally shortly.",
+  "Written assessment": "Hello {name}, the next step for {role} at Healthy Planet School is a short written task (about 30 minutes) you can complete on any device: {link}\nPlease finish it before {deadline}.",
+  "Screening call": "Hello {name}, congratulations on completing the first interview for {role} at Healthy Planet School. Our HR team would like a 10 to 15 minute call with you. Please reply with a good time this week.",
+  appointment_letter: "Healthy Planet School\n{campus}\n\nRef: {ref_no}\n{date}\n\nDear {name},\n\nFurther to your acceptance of our offer, we are pleased to appoint you as {role} in the {department} team at Healthy Planet School, {campus}, with effect from {join_date}. You will report to {reporting_manager}.\n\nYour remuneration will be {salary}. Your appointment is governed by the school's HR Manual, code of conduct and child-safeguarding policy, copies of which you will receive at induction.\n\nWe look forward to welcoming you.\n\nWarm regards,\n\nExecutive Head\nHealthy Planet School",
   demo_lesson: "Hello {name}, we would like to invite you to teach a short demo lesson at Healthy Planet School for the {role} role. {slots}. Please plan a 20-minute lesson for the class you will be told about on arrival, and bring any materials you need.",
-  offer_letter: "Healthy Planet School\n{campus}\n\n{date}\n\nDear {name},\n\nWe are pleased to offer you the position of {role} in our {department} team at Healthy Planet School, {campus}, starting on {join_date}.\n\nYour remuneration will be {salary}, as discussed. This offer is subject to verification of your original certificates, satisfactory references, police verification and your signed child-safeguarding declaration.\n\nWe were impressed by your thinking about children and classrooms, and we look forward to the difference you will make here. Please confirm your acceptance by replying to this email within seven days.\n\nWarm regards,\n\nDr. Arunabh Singh\nDirector, Healthy Planet School",
+  offer_letter: "Healthy Planet School\n{campus}\n\nRef: {ref_no}\n{date}\n\nDear {name},\n\nWe are pleased to offer you the position of {role} in our {department} team at Healthy Planet School, {campus}, starting on {join_date}, reporting to {reporting_manager}.\n\nYour remuneration will be {salary}, as discussed. This offer is subject to verification of your original certificates, satisfactory references, police verification and your signed child-safeguarding declaration.\n\nWe were impressed by your thinking about children and classrooms, and we look forward to the difference you will make here. Please confirm your acceptance by replying to this email within seven days.\n\nWarm regards,\n\nDr. Arunabh Singh\nDirector, Healthy Planet School",
   interview_reminder: "Hello {name}, a gentle reminder that your first-round interview for {role} at Healthy Planet School is waiting for you: {link}",
 };
 
@@ -27,7 +30,7 @@ export function getTemplates() {
   return t;
 }
 export function fill(tpl, cand, role, extra = {}) {
-  const vars = { name: (cand.name || "").split(" ")[0], role: role?.title || "the role", link: "{link}", slots: "{slots}", deadline: "{deadline}", join_date: cand.join_date || "{join_date}", ...extra };
+  const vars = { name: (cand.name || "").split(" ")[0], role: role?.title || "the role", campus: role?.campus || "Noida", link: "{link}", slots: "{slots}", deadline: "{deadline}", join_date: cand.join_date || "{join_date}", reporting_manager: role?.reporting_manager || "{reporting_manager}", ...extra };
   return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`);
 }
 
