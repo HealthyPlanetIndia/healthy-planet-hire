@@ -3,14 +3,12 @@ import { Link } from "react-router-dom";
 import { api, isAdmin } from "../api.js";
 
 export default function Dashboard() {
-  const [d, setD] = useState(null); const [s, setS] = useState(null);
-  useEffect(() => { api("/dashboard").then(setD); api("/status").then(setS); }, []);
+  const [d, setD] = useState(null); const [s, setS] = useState(null); const [setupState, setSetup] = useState(null);
+  useEffect(() => { api("/dashboard").then(setD).catch(() => setD({ byStage: [], newThisWeek: 0, avgDaysToOffer: null, interviews: [] })); api("/status").then(setS).catch(() => {}); if (isAdmin()) api("/setup").then(setSetup).catch(() => {}); }, []);
   if (!d) return <div className="muted">Loading...</div>;
   const n = (st) => d.byStage.find((x) => x.stage === st)?.n || 0;
   const active = ["Applied", "Screened", "AI interview", "Shortlist", "Demo lesson", "School interview", "Offer"].reduce((a, st) => a + n(st), 0);
   const done = d.interviews.find((x) => x.status === "completed")?.n || 0;
-  const [setupState, setSetup] = useState(null);
-  useEffect(() => { if (isAdmin()) api("/setup").then(setSetup).catch(() => {}); }, []);
   const todo = setupState?.items.filter((i) => !i.optional && !i.ok) || [];
   return (
     <div className="grid">
