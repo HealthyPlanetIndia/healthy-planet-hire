@@ -34,7 +34,7 @@ export default function Apply() {
           <div style={{ marginTop: "auto", color: "var(--green)", fontWeight: 500, fontSize: 13 }}>View and apply →</div>
         </Link>)}
       </div>
-      <div className="muted" style={{ fontSize: 12, marginTop: 24 }}>Healthy Planet School stores applications for recruitment only, keeps them for up to 12 months, and deletes them on request. hr@healthyplanetschool.com</div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 24 }}>Applications are used for recruitment only, kept for up to 12 months, and deleted on request. hr@healthyplanetschool.com</div>
     </div>
   </div>;
   if (done) return <Wrap><div className="card"><b>Thank you, {f.name.split(" ")[0]}.</b><p>Your application for {role?.title} at the {role?.campus} campus has reached us. We review every application against the same criteria and will message you on WhatsApp or email about next steps.</p><Link to="/apply" className="link" style={{ fontSize: 13 }}>Back to all positions</Link></div></Wrap>;
@@ -59,7 +59,7 @@ export default function Apply() {
       <label className="field">Referred by a Healthy Planet or NWS staff member? Their name.<input value={f.referrer} onChange={(e) => setF({ ...f, referrer: e.target.value })} /></label>
       <label style={{ fontSize: 13, display: "block", marginBottom: 10 }}><input type="checkbox" style={{ width: "auto" }} checked={f.internal} onChange={(e) => setF({ ...f, internal: e.target.checked })} /> I currently work at Healthy Planet School or Nehru World School (internal application)</label>
       <label className="field">Paste your CV, or a summary of your qualifications and experience<textarea style={{ minHeight: 140 }} value={f.resume_text} onChange={(e) => setF({ ...f, resume_text: e.target.value })} /></label>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>By applying you agree that Healthy Planet School stores this information for recruitment, keeps it for up to 12 months, and deletes it on request. Write to hr@healthyplanetschool.com to access or delete your data.</div>
+      <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>By applying you consent to Healthy Planet School using this information for recruitment only, keeping it for up to 12 months, restricting access to authorised staff and taking reasonable measures to protect it. Write to hr@healthyplanetschool.com to access, correct or delete your data.</div>
       {err && <div style={{ color: "#B0463C", fontSize: 13, marginBottom: 8 }}>{err}</div>}
       <button className="primary" style={{ width: "100%" }} disabled={!f.name || !f.role_id || (!f.phone && !f.email)} onClick={async () => { try { await api("/public/apply", { method: "POST", body: f, auth: false }); setDone(true); } catch (e) { setErr(e.message); } }}>Send application</button>
     </div>

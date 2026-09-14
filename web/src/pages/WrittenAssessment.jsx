@@ -26,7 +26,7 @@ export default function WrittenAssessment() {
       <div className="muted" style={{ fontSize: 12 }}>Healthy Planet School · Written assessment</div>
       <div style={{ fontSize: 18, fontWeight: 700 }}>Hello {d.candidate}</div>
       {!d.started_at && !done && <>
-        <p className="muted" style={{ lineHeight: 1.5 }}>This is a short written task for the {d.role} role. You will have {d.minutes} minutes from the moment you press Start. Please write in your own words, without help from anyone or from AI tools; pasting text is noted. Your writing is read by the school's team and by an assessment assistant.</p>
+        <p className="muted" style={{ lineHeight: 1.5 }}>This is a short written task for the {d.role} role. You will have {d.minutes} minutes from the moment you press Start. Please write in your own words, without help from anyone or from AI tools; pasting text is noted. Your writing is assessed for this recruitment by the school's authorised staff and an assessment assistant, and kept under the same safeguards as the rest of your application.</p>
         <button className="warm" style={{ width: "100%" }} disabled={busy} onClick={start}>Start ({d.minutes} minutes)</button>
       </>}
       {d.started_at && !done && <>

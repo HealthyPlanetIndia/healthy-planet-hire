@@ -17,15 +17,15 @@ const STR = {
   },
 };
 const CHECK = {
-  en: ["I have 20 uninterrupted minutes and will give this my full attention", "I am in a quiet, private, well-lit room, with the light in front of me", "I am using a laptop or desktop, or my phone is on a stable surface at eye level", "I understand: 3 seconds before recording starts on each answer, I can ask Maya to repeat a question, and I may re-record one answer", "I will answer alone, without notes, other people or the internet. I understand the interview is recorded, assessed, and seen only by the school's recruiting team, and that leaving the screen or pasting text is noted"],
-  hi: ["मेरे पास 20 मिनट बिना रुकावट के हैं और मैं पूरा ध्यान दूँगा/दूँगी", "मैं शांत, निजी, अच्छी रोशनी वाले कमरे में हूँ और रोशनी सामने से आ रही है", "मैं लैपटॉप या डेस्कटॉप पर हूँ, या मेरा फ़ोन आँखों की ऊँचाई पर स्थिर रखा है", "मैं समझता/समझती हूँ: हर जवाब से पहले 3 सेकंड, फिर रिकॉर्डिंग शुरू, माया से सवाल दोहराने को कह सकते हैं, और एक जवाब दोबारा रिकॉर्ड कर सकते हैं", "मैं अकेले, बिना नोट्स, बिना किसी की या इंटरनेट की मदद के जवाब दूँगा/दूँगी। साक्षात्कार रिकॉर्ड और मूल्यांकित होता है, केवल स्कूल की भर्ती टीम देखती है, और स्क्रीन छोड़ना या टेक्स्ट पेस्ट करना नोट किया जाता है"],
+  en: ["I have 20 uninterrupted minutes and will give this my full attention", "I am in a quiet, private, well-lit room, with the light in front of me", "I am using a laptop or desktop, or my phone is on a stable surface at eye level", "I understand: 3 seconds before recording starts on each answer, I can ask Maya to repeat a question, and I may re-record one answer", "I will answer alone, without notes, other people or the internet, and I understand that leaving the screen or pasting text is noted", "I consent to this interview being recorded, transcribed and assessed for this recruitment. Healthy Planet School restricts access to authorised recruiting staff, stores recordings encrypted, deletes them after 90 days, and takes reasonable measures to protect them, though no online system can be guaranteed against every risk"],
+  hi: ["मेरे पास 20 मिनट बिना रुकावट के हैं और मैं पूरा ध्यान दूँगा/दूँगी", "मैं शांत, निजी, अच्छी रोशनी वाले कमरे में हूँ और रोशनी सामने से आ रही है", "मैं लैपटॉप या डेस्कटॉप पर हूँ, या मेरा फ़ोन आँखों की ऊँचाई पर स्थिर रखा है", "मैं समझता/समझती हूँ: हर जवाब से पहले 3 सेकंड, फिर रिकॉर्डिंग शुरू, माया से सवाल दोहराने को कह सकते हैं, और एक जवाब दोबारा रिकॉर्ड कर सकते हैं", "मैं अकेले, बिना नोट्स, बिना किसी की या इंटरनेट की मदद के जवाब दूँगा/दूँगी, और समझता/समझती हूँ कि स्क्रीन छोड़ना या टेक्स्ट पेस्ट करना नोट किया जाता है", "मैं इस भर्ती के लिए साक्षात्कार की रिकॉर्डिंग, ट्रांसक्रिप्शन और मूल्यांकन के लिए सहमति देता/देती हूँ। हेल्दी प्लैनेट स्कूल केवल अधिकृत भर्ती कर्मचारियों को पहुँच देता है, रिकॉर्डिंग एन्क्रिप्टेड रखता है, 90 दिनों में हटा देता है, और उचित सुरक्षा उपाय करता है, यद्यपि किसी भी ऑनलाइन प्रणाली की हर जोखिम से पूर्ण गारंटी नहीं दी जा सकती"],
 };
 
 export default function CandidateInterview() {
   const { token } = useParams();
   const [info, setInfo] = useState(null); const [err, setErr] = useState(""); const [lang, setLang] = useState("en");
   const [transcript, setTr] = useState([]); const [ended, setEnded] = useState(false);
-  const [ticks, setTicks] = useState([false, false, false, false, false]);
+  const [ticks, setTicks] = useState([false, false, false, false, false, false]);
   const [camState, setCamState] = useState("off"); const [light, setLight] = useState(null); const [mic, setMic] = useState(null);
   const [phase, setPhase] = useState("idle"); // idle | asking | thinking | answering | uploading | failed | retakeOffer
   const [countdown, setCountdown] = useState(0); const [seconds, setSeconds] = useState(0); const [busy, setBusy] = useState(false); const [emailed, setEmailed] = useState(false);
@@ -212,7 +212,7 @@ export default function CandidateInterview() {
 
             <button className="primary" disabled={busy || !canStart} onClick={start} style={{ width: "100%", marginTop: 16, padding: 12, fontSize: 15 }}>{busy ? "..." : t.start}</button>
             {!allTicked && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{lang === "hi" ? "शुरू करने के लिए ऊपर हर बिंदु पर सही का निशान लगाएँ।" : "Tick every item above to begin."}</div>}
-            <div className="muted" style={{ fontSize: 11, marginTop: 10 }}>{lang === "hi" ? "वीडियो एन्क्रिप्टेड रखा जाता है, केवल स्कूल की भर्ती टीम देखती है, और 90 दिनों में हट जाता है। अपना डेटा देखने या हटाने के लिए hr@healthyplanetschool.com पर लिखें।" : "Recordings are stored encrypted, seen only by the school's recruiting team, and deleted after 90 days. Write to hr@healthyplanetschool.com to see or delete your data."}</div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 10 }}>{lang === "hi" ? "आपका डेटा केवल इस भर्ती के लिए उपयोग होता है। अपना डेटा देखने, सुधारने या हटाने के लिए, या सहमति वापस लेने के लिए hr@healthyplanetschool.com पर लिखें।" : "Your data is used for this recruitment only. Write to hr@healthyplanetschool.com to see, correct or delete your data, or to withdraw consent."}</div>
           </div>
         </div>
       )}
