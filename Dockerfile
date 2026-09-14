@@ -4,6 +4,7 @@ WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm install
 COPY web ./
+COPY VERSION ../VERSION
 RUN npm run build
 
 FROM node:20-slim
@@ -12,6 +13,7 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 COPY server/package*.json ./
 RUN npm install --omit=dev
 COPY server/src ./src
+COPY VERSION /app/VERSION
 COPY --from=web /app/web/dist /app/web/dist
 RUN mkdir -p /app/server/data
 ENV PORT=4000 DATA_DIR=/app/server/data
