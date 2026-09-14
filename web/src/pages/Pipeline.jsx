@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, daysSince, BOARD, isManager, t } from "../api.js";
+import { useSearchParams } from "react-router-dom";
 import { Field, Score } from "../components/ui.jsx";
 import CandidatePanel from "../components/CandidatePanel.jsx";
 import { useToast } from "../components/Shell.jsx";
@@ -7,7 +8,9 @@ import { useToast } from "../components/Shell.jsx";
 export default function Pipeline() {
   const say = useToast();
   const [roles, setRoles] = useState([]); const [cands, setCands] = useState([]);
-  const [roleFilter, setRoleFilter] = useState(""); const [openId, setOpenId] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const [roleFilter, setRoleFilterState] = useState(params.get("role") || ""); const [openId, setOpenId] = useState(null);
+  const setRoleFilter = (v) => { setRoleFilterState(v); setParams(v ? { role: v } : {}); };
   const [adding, setAdding] = useState(false); const [busy, setBusy] = useState(false);
   const [f, setF] = useState({ name: "", phone: "", email: "", role_id: "", source: "Job portal", resume_text: "" }); const [file, setFile] = useState(null);
   const [bulk, setBulk] = useState(false); const [bulkFiles, setBulkFiles] = useState([]);

@@ -99,11 +99,21 @@ misc.post("/retention/run", requireAdmin, (req, res) => { audit(req, "ran retent
 misc.post("/backup", requireAdmin, (req, res) => { audit(req, "manual backup"); res.json({ file: backup() }); });
 
 misc.get("/dashboard", (req, res) => {
-  const byStage = db.prepare("SELECT stage, COUNT(*) n FROM candidates GROUP BY stage").all();
+  const byStage = db.prepare("SELECT stage, COUNT(*) n FROM candidates WHERE anonymized=0 GROUP BY stage").all();
+  // Per role: every stage count, applications this week, and how many are waiting more than FOLLOWUP_DAYS
+  const days = +(process.env.FOLLOWUP_DAYS || 3);
+  const roles = db.prepare(`SELECT r.id, r.title, r.campus, r.department, r.grade, r.subject, r.openings, r.status, r.created_at,
+      (SELECT COUNT(*) FROM candidates c WHERE c.role_id=r.id AND c.anonymized=0) total,
+      (SELECT COUNT(*) FROM candidates c WHERE c.role_id=r.id AND c.anonymized=0 AND c.created_at >= datetime('now','-7 days')) week,
+      (SELECT COUNT(*) FROM candidates c WHERE c.role_id=r.id AND c.anonymized=0 AND c.stage IN (${ACTIVE_STAGES.map((x) => `'${x}'`).join(",")}) AND c.stage <> 'Offer' AND julianday('now') - julianday(COALESCE(c.last_reply_at, c.stage_at)) >= ${days}) waiting
+    FROM roles r WHERE r.status IN ('open','closed') ORDER BY r.campus, r.status='open' DESC, r.title`).all();
+  const counts = db.prepare("SELECT role_id, stage, COUNT(*) n FROM candidates WHERE anonymized=0 AND role_id IS NOT NULL GROUP BY role_id, stage").all();
+  for (const r of roles) { r.stages = {}; for (const k of counts.filter((x) => x.role_id === r.id)) r.stages[k.stage] = k.n; }
+  const unassigned = db.prepare("SELECT COUNT(*) n FROM candidates WHERE anonymized=0 AND role_id IS NULL").get().n;
   const week = db.prepare("SELECT COUNT(*) n FROM candidates WHERE created_at >= datetime('now','-7 days')").get().n;
   const tth = db.prepare(`SELECT AVG(julianday(e.created_at) - julianday(c.created_at)) d FROM events e JOIN candidates c ON c.id=e.candidate_id WHERE e.type='stage' AND e.detail LIKE '%→ Offer'`).get().d;
   const interviews = db.prepare("SELECT status, COUNT(*) n FROM interviews GROUP BY status").all();
-  res.json({ byStage, newThisWeek: week, avgDaysToOffer: tth ? Math.round(tth) : null, interviews });
+  res.json({ byStage, newThisWeek: week, avgDaysToOffer: tth ? Math.round(tth) : null, interviews, roles, unassigned, stages: STAGES });
 });
 
 misc.get("/users", requireAdmin, (req, res) => res.json(db.prepare("SELECT id, name, email, role, campuses, created_at FROM users").all().map((u) => ({ ...u, campuses: u.campuses ? JSON.parse(u.campuses) : [] }))));
