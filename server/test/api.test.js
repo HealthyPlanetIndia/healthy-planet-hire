@@ -249,7 +249,7 @@ test("HR process: requisition needs Director approval before it is public", asyn
 test("HR process: referrals need a referrer; screening call moves the candidate; written assessment records", async () => {
   const bad = await req("/candidates", { method: "POST", body: { name: "Ref Person", role_id: 1, source: "Referral" } }); assert.equal(bad.status, 500);
   const c = (await req("/candidates", { method: "POST", body: { name: "Ref Person", role_id: 1, source: "Referral", referrer: "Ms Gupta", location: "Indirapuram, 6 km" } })).data; assert.equal(c.referrer, "Ms Gupta");
-  await req(`/candidates/${c.id}`, { method: "PUT", body: { stage: "Screening call" } });
+  await req(`/candidates/${c.id}`, { method: "PUT", body: { stage: "AI interview" } }); // still at AI interview: proceed must still advance
   const sc = (await req(`/candidates/${c.id}/screening-call`, { method: "PUT", body: { outcome: "proceed", notes: "Interested, 30 days notice", notice_period: "30 days", expected_salary: "60k" } })).data;
   assert.equal(sc.stage, "Shortlist"); assert.equal(sc.notice_period, "30 days"); assert.equal(sc.screening_call.by, "Arunabh Singh");
   const w = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: { kind: "written" } })).data; assert.equal(w.kind, "written");

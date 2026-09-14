@@ -224,13 +224,16 @@ candidates.get("/:id/interviews/:ivId/recording", async (req, res, next) => {
 });
 
 // Step 3.2 Screening call (HR, 10 to 15 minutes, after the AI interview)
-candidates.put("/:id/screening-call", requireStaff, (req, res) => {
+candidates.put("/:id/screening-call", requireStaff, async (req, res) => {
   const c = getC(req.params.id); if (!c) return res.status(404).json({ error: "Not found" });
   const sc = { ...(c.screening_call || {}), ...req.body, by: req.user.name, at: new Date().toISOString() };
   db.prepare("UPDATE candidates SET screening_call=?, location=COALESCE(?, location), expected_salary=COALESCE(?, expected_salary), notice_period=COALESCE(?, notice_period), current_employer=COALESCE(?, current_employer) WHERE id=?").run(JSON.stringify(sc), req.body.location ?? null, req.body.expected_salary ?? null, req.body.notice_period ?? null, req.body.current_employer ?? null, c.id);
   logEvent(c.id, "screening_call", `${sc.outcome || "noted"}${sc.notes ? `: ${sc.notes.slice(0, 80)}` : ""}`); audit(req, `screening call ${c.id}: ${sc.outcome}`);
-  if (sc.outcome === "proceed" && c.stage === "Screening call") db.prepare("UPDATE candidates SET stage='Shortlist', stage_at=datetime('now') WHERE id=?").run(c.id);
-  if (sc.outcome === "decline" && c.stage === "Screening call") db.prepare("UPDATE candidates SET stage='Not now', stage_at=datetime('now') WHERE id=?").run(c.id);
+  const before = STAGES.indexOf(c.stage), target = STAGES.indexOf("Shortlist");
+  if (sc.outcome === "proceed" && before < target) { db.prepare("UPDATE candidates SET stage='Shortlist', stage_at=datetime('now') WHERE id=?").run(c.id); logEvent(c.id, "stage", `${c.stage} → Shortlist (screening call)`); ensureChecks(c.id); }
+  if (sc.outcome === "decline" && before <= target) { db.prepare("UPDATE candidates SET stage='Not now', stage_at=datetime('now') WHERE id=?").run(c.id); logEvent(c.id, "stage", `${c.stage} → Not now (screening call)`); }
+  if (sc.outcome === "hold" && c.stage !== "Screening call" && before < target) db.prepare("UPDATE candidates SET stage='Screening call', stage_at=datetime('now') WHERE id=?").run(c.id);
+  await fire("stage_change", c.id, {});
   res.json(getC(c.id));
 });
 
