@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api, daysSince, BOARD, isManager, t } from "../api.js";
 import { useSearchParams } from "react-router-dom";
-import { Field, Score } from "../components/ui.jsx";
+import { Field, Score, ScrollStrip } from "../components/ui.jsx";
 import CandidatePanel from "../components/CandidatePanel.jsx";
 import { useToast } from "../components/Shell.jsx";
 
@@ -17,6 +17,7 @@ export default function Pipeline() {
   const [campus, setCampus] = useState(""); const [queue, setQueue] = useState(null);
   useEffect(() => { if (!queue || (queue.pending === 0 && queue.active === 0)) return; const iv = setInterval(async () => { const q = await api("/candidates/queue"); setQueue(q); if (q.pending === 0 && q.active === 0) { clearInterval(iv); load(); say(`Screening finished: ${q.done} done${q.failed ? `, ${q.failed} failed` : ""}`); } else load(); }, 2500); return () => clearInterval(iv); }, [queue?.pending, queue?.active]);
   const campuses = [...new Set(roles.map((r) => r.campus).filter(Boolean))];
+  const boardRef = useRef(null);
   async function importBulk() { setBusy(true); try { const fd = new FormData(); fd.append("role_id", f.role_id); for (const x of bulkFiles) fd.append("files", x); const r = await api("/candidates/bulk", { method: "POST", form: fd }); say(`Imported ${r.created}${r.duplicates ? `, ${r.duplicates} possible duplicates` : ""}${r.failed.length ? `, ${r.failed.length} failed` : ""}`); if (r.failed.length) console.warn(r.failed); setBulk(false); setBulkFiles([]); load(); } catch (e) { say(e.message); } setBusy(false); }
 
   const load = () => api(`/candidates${roleFilter ? `?role_id=${roleFilter}` : ""}`).then(setCands);
@@ -70,7 +71,8 @@ export default function Pipeline() {
           <div className="row"><button className="primary" disabled={busy || !f.name.trim()} onClick={add}>{busy ? "Adding..." : "Add to pipeline"}</button><button onClick={() => setAdding(false)}>Cancel</button></div>
         </div>
       )}
-      <div className="board">
+      <ScrollStrip targetRef={boardRef} />
+      <div className="board" ref={boardRef}>
         {BOARD.map((stage) => { const list = shown.filter((c) => c.stage === stage); return (
           <div key={stage} className="col">
             <h4><span>{t(stage)}</span><span className="muted" style={{ fontWeight: 400 }}>{list.length}</span></h4>
@@ -89,6 +91,7 @@ export default function Pipeline() {
             </div>
           </div>); })}
       </div>
+      <ScrollStrip targetRef={boardRef} />
       {openId && <CandidatePanel id={openId} roles={roles} onClose={() => { setOpenId(null); load(); }} />}
     </div>
   );
