@@ -78,12 +78,12 @@ export default function Pipeline() {
               {list.length === 0 && <div className="muted" style={{ fontSize: 12, padding: 10, textAlign: "center" }}>Nothing here yet</div>}
               {list.map((c) => { const d = daysSince(c.stage_at), stale = d >= 3 && stage !== "Joined"; return (
                 <div key={c.id} className={`cand ${stale ? "stale" : ""}`} role="button" tabIndex={0} onClick={() => setOpenId(c.id)} onKeyDown={(e) => e.key === "Enter" && setOpenId(c.id)}>
-                  <div className="row" style={{ justifyContent: "space-between" }}><span style={{ fontWeight: 500 }}>{c.name}</span>{c.screening && <Score v={c.screening.overall} />}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>{c.role_title || "No role"}</div>
+                  <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap", gap: 4 }}><span className="name">{c.name}</span>{c.screening && <Score v={c.screening.overall} />}</div>
+                  {!roleFilter && <div className="role" title={c.role_title || "No role"}>{c.role_title || "No role"}</div>}
                   {["high", "medium-high"].includes(c.integrity_risk) && <div style={{ fontSize: 11, color: "#B0463C", fontWeight: 500, marginTop: 4 }}>⚑ Possible outside help, review</div>}
                   {c.blockers > 0 && <div style={{ fontSize: 11, color: "#8A6A10", marginTop: 4 }}>{c.blockers} check{c.blockers > 1 ? "s" : ""} before offer</div>}
                   {c.interview_at && new Date(c.interview_at) > new Date() && <div style={{ fontSize: 11, color: "var(--blue)", marginTop: 4 }}>Booked {new Date(c.interview_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>}
-                  <div className="muted" style={{ fontSize: 11, marginTop: 6, color: stale ? "var(--coral)" : undefined }}>{c.queued ? "Screening..." : stale ? `Waiting ${d} days` : `${d}d in stage`}</div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 3, color: stale ? "var(--coral)" : undefined }}>{c.queued ? "Screening..." : stale ? `Waiting ${d} days` : `${d}d in stage`}</div>
                   {c.needs_human === 1 && <div style={{ fontSize: 11, color: "var(--coral)", marginTop: 4 }}>Replied, needs a person</div>}
                 </div>); })}
             </div>
