@@ -4,6 +4,7 @@
 // as a fallback and the two are compared in the recruiter view.
 import { db, rowInterview, logEvent } from "../db.js";
 import { readClip } from "./clips.js";
+import { noDashes } from "../ai.js";
 
 export const transcribeEnabled = () => !!process.env.DEEPGRAM_API_KEY;
 const MULTI = new Set(["en", "hi"]);
@@ -14,7 +15,7 @@ export async function transcribeBuffer(buf, mime, lang = "en") {
   const r = await fetch(`https://api.deepgram.com/v1/listen?${q}`, { method: "POST", headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`, "Content-Type": mime || "video/webm" }, body: buf });
   const d = await r.json(); if (!r.ok) throw new Error(d.err_msg || d.message || "Transcription failed");
   const alt = d.results?.channels?.[0]?.alternatives?.[0];
-  return { text: (alt?.transcript || "").trim(), confidence: alt?.confidence ?? null, languages: d.results?.channels?.[0]?.detected_language || (alt?.languages || []).join(",") };
+  return { text: noDashes((alt?.transcript || "").trim()), confidence: alt?.confidence ?? null, languages: d.results?.channels?.[0]?.detected_language || (alt?.languages || []).join(",") };
 }
 
 // Transcribes clip `index` of an interview and writes the result into the clip record and, if the

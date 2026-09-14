@@ -4,11 +4,13 @@ const MODEL = "claude-sonnet-4-6";
 let client = null;
 export const aiEnabled = () => !!process.env.ANTHROPIC_API_KEY;
 function c() { if (!aiEnabled()) throw new Error("AI is not configured: set ANTHROPIC_API_KEY in server/.env"); return (client ||= new Anthropic()); }
-const text = (r) => r.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+// House style: no em or en dashes anywhere the school's name appears. The prompts say so; this is the safety net.
+export const noDashes = (t) => String(t).replace(/\s*—\s*/g, ", ").replace(/(\d)\s*–\s*(\d)/g, "$1 to $2").replace(/\s*–\s*/g, ", ");
+const text = (r) => noDashes(r.content.filter((b) => b.type === "text").map((b) => b.text).join("\n"));
 // Tolerant JSON extraction: strips fences and any prose before the first { or after the last }
 const parse = (t) => { const c = t.replace(/```json|```/g, ""); const a = c.indexOf("{"), b = c.lastIndexOf("}"); if (a < 0 || b < a) throw new Error("The assessment was not valid JSON"); return JSON.parse(c.slice(a, b + 1)); };
 
-const SCHOOL = "Healthy Planet School, a K-12 school in Noida, India, which believes environments and relationships teach as much as curriculum.";
+const SCHOOL = "Healthy Planet School, a K-12 school in Noida, India, which believes environments and relationships teach as much as curriculum." + " " + "House style: never use em dashes or en dashes (— or –) anywhere, including inside JSON strings; use commas, full stops, colons, or the word 'to' for ranges.";
 
 export async function screenResume(role, candidate) {
   const system = `You screen job applicants for ${SCHOOL} Judge only from the resume text given. Quote the resume exactly for evidence; if nothing supports a criterion, leave evidence empty. Be fair, concise and specific. Never infer protected characteristics. Respond with JSON only, no prose, no markdown:

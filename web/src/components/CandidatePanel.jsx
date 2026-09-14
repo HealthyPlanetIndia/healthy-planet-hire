@@ -209,7 +209,7 @@ function Evaluations({ c, id, say, reload }) {
   const avg = (e) => (Object.values(e.scores || {}).reduce((a, b) => a + +b, 0) / Math.max(1, Object.keys(e.scores || {}).length)).toFixed(1);
   const [round, setRound] = useState(ROUNDS.includes(c.stage) ? c.stage : "Leadership interview");
   const rubric = c.role?.rubrics?.[round] || c.role?.rubric || [];
-  const colAvg = (key) => { const v = done.filter((e) => e.stage === round).map((e) => +e.scores?.[key]).filter(Boolean); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "–"; };
+  const colAvg = (key) => { const v = done.filter((e) => e.stage === round).map((e) => +e.scores?.[key]).filter(Boolean); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "not scored"; };
   return <div style={{ marginTop: 10 }}>
     <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 14 }}>Scoring links</b>{done.length > 0 && <span>Overall <Score v={Math.round((done.reduce((a, e) => a + +avg(e), 0) / done.length) * 20)} /><span className="muted" style={{ fontSize: 12 }}> /100 from {done.length} panelist{done.length > 1 ? "s" : ""}</span></span>}</div>
     {done.some((e) => e.stage === round) && <div style={{ marginTop: 8, fontSize: 13 }}><div className="muted" style={{ fontSize: 12 }}>{round}, per item</div>{rubric.map((r) => <div key={r.key} className="row" style={{ justifyContent: "space-between", marginTop: 3 }}><span className="muted">{r.label}</span><b>{colAvg(r.key)} / 5</b></div>)}</div>}

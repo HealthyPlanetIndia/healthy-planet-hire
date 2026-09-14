@@ -15,4 +15,5 @@ for (const f of files) {
     });
   }
 }
-if (bad) { process.exit(1); } else console.log(`hooks ok (${files.length} files)`);
+for (const f of files) { const src = fs.readFileSync(f, "utf8"); const m = src.match(/[\u2013\u2014]/g); if (m) { console.error(`${f}: contains ${m.length} em/en dash(es); house style forbids them`); bad++; } }
+if (bad) { process.exit(1); } else console.log(`hooks ok, no long dashes (${files.length} files)`);
