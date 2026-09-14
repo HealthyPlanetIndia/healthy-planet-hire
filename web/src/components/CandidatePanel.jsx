@@ -92,7 +92,7 @@ export default function CandidatePanel({ id, roles, onClose }) {
 
         {tab === "message" && <div className="card">
           <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>Template for the {c.stage} stage. Edit, then send.</div>
-          {["Shortlist", "School interview"].includes(c.stage) && <Field label="Interview slots to offer"><input placeholder="e.g. Tue 16 Sep 10:00, Wed 17 Sep 14:30" value={slots} onChange={(e) => setSlots(e.target.value)} /></Field>}
+          {["Shortlist", "Leadership interview", "Subject assessment", "Demo lesson"].includes(c.stage) && <Field label="Interview slots to offer (or leave blank to use the booking link)"><input placeholder="e.g. Tue 16 Sep 10:00, Wed 17 Sep 14:30" value={slots} onChange={(e) => setSlots(e.target.value)} /></Field>}
           {c.stage === "Joined" && <Field label="Joining date"><input type="date" value={c.join_date || ""} onChange={(e) => save({ join_date: e.target.value })} /></Field>}
           <textarea style={{ minHeight: 150 }} value={msg} onChange={(e) => setMsg(e.target.value)} />
           <div className="row" style={{ marginTop: 10 }}>

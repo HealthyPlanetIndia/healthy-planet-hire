@@ -297,3 +297,12 @@ test("clip upload accepts the content types real browsers send", async () => {
   }
   assert.equal((await req(`/candidates/${c.id}`)).data.interviews[0].clips.length, 4);
 });
+
+test("written assessments are typed interviews (paste and speed checks stay on) and every stage has a template", async () => {
+  const c = (await req("/candidates", { method: "POST", body: { name: "Typist", role_id: 1 } })).data;
+  const w = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: { kind: "written" } })).data;
+  const full = (await req(`/candidates/${c.id}`)).data; assert.equal(full.interviews[0].mode, "text");
+  const t = (await req("/templates")).data;
+  for (const st of ["Screened", "AI interview", "Screening call", "Shortlist", "Leadership interview", "Subject assessment", "Demo lesson", "Written assessment", "Final review", "HR discussion", "Offer", "Joined", "Talent pool", "Not now"]) assert.ok(t[st], `template for ${st}`);
+  assert.ok(!t["School interview"]);
+});

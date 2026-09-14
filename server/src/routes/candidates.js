@@ -46,7 +46,7 @@ candidates.get("/", (req, res) => {
   sql += " ORDER BY c.stage_at DESC";
   const risk = db.prepare("SELECT json_extract(integrity,'$.risk') r FROM interviews WHERE candidate_id=? AND integrity IS NOT NULL ORDER BY created_at DESC LIMIT 1");
   const blockers = db.prepare("SELECT COUNT(*) n FROM checks WHERE candidate_id=? AND required=1 AND category IN ('document','safety') AND status NOT IN ('verified','na')");
-  res.json(db.prepare(sql).all(...p).map((r) => ({ ...rowCandidate(r), integrity_risk: risk.get(r.id)?.r || null, queued: isQueued(r.id), blockers: r.stage === "School interview" || r.stage === "Demo lesson" ? blockers.get(r.id).n : 0 })));
+  res.json(db.prepare(sql).all(...p).map((r) => ({ ...rowCandidate(r), integrity_risk: risk.get(r.id)?.r || null, queued: isQueued(r.id), blockers: ["Leadership interview", "Subject assessment", "Demo lesson", "Written assessment", "Final review", "HR discussion"].includes(r.stage) ? blockers.get(r.id).n : 0 })));
 });
 candidates.get("/queue", (req, res) => res.json(queueStatus()));
 
@@ -93,7 +93,7 @@ candidates.get("/:id", (req, res) => {
   const evaluations = db.prepare("SELECT * FROM evaluations WHERE candidate_id = ? ORDER BY created_at").all(c.id).map(rowEvaluation).map((e) => ({ ...e, link: `${publicUrl()}/score/${e.token}` }));
   const slot = c.interview_at ? db.prepare("SELECT * FROM slots WHERE candidate_id = ? ORDER BY starts_at DESC LIMIT 1").get(c.id) : null;
   if (!c.share_token) { c.share_token = token(); db.prepare("UPDATE candidates SET share_token=? WHERE id=?").run(c.share_token, c.id); }
-  res.json({ ...c, role, messages, events, interviews, checks, evaluations, slot, share_link: `${publicUrl()}/report/${c.share_token}`, booking_link: `${publicUrl()}/book/${c.booking_token}`, duplicates: findDuplicates(c, c.id), offer_blockers: c.stage === "School interview" || c.stage === "Demo lesson" ? offerBlockers(c.id) : [] });
+  res.json({ ...c, role, messages, events, interviews, checks, evaluations, slot, share_link: `${publicUrl()}/report/${c.share_token}`, booking_link: `${publicUrl()}/book/${c.booking_token}`, duplicates: findDuplicates(c, c.id), offer_blockers: ["Leadership interview", "Subject assessment", "Demo lesson", "Written assessment", "Final review", "HR discussion"].includes(c.stage) ? offerBlockers(c.id) : [] });
 });
 
 candidates.put("/:id", upload.single("resume"), async (req, res, next) => {
@@ -159,7 +159,7 @@ candidates.post("/:id/interviews", requireStaff, async (req, res, next) => {
     if (kind === "video" && !videoEnabled()) return res.status(400).json({ error: "Video interviews need DAILY_API_KEY in server/.env" });
     const tok = token(), days = +(req.body.valid_days || 5), expires = new Date(Date.now() + days * 86400000);
     let room = null; if (kind === "video") room = await createRoom(`hph-${tok}`, expires);
-    db.prepare("INSERT INTO interviews (candidate_id, token, language, expires_at, proctor, kind, room_url, room_name, mode) VALUES (?,?,?,?,?,?,?,?,?)").run(c.id, tok, req.body.language || "en", expires.toISOString(), req.body.proctor === false ? 0 : 1, kind, room?.url || null, room?.name || null, req.body.mode === "text" ? "text" : "video");
+    db.prepare("INSERT INTO interviews (candidate_id, token, language, expires_at, proctor, kind, room_url, room_name, mode) VALUES (?,?,?,?,?,?,?,?,?)").run(c.id, tok, req.body.language || "en", expires.toISOString(), req.body.proctor === false ? 0 : 1, kind, room?.url || null, room?.name || null, kind === "written" || req.body.mode === "text" ? "text" : "video");
     if (kind !== "written" && (c.stage === "Applied" || c.stage === "Screened")) db.prepare("UPDATE candidates SET stage='AI interview', stage_at=datetime('now') WHERE id=?").run(c.id);
     if (kind === "written" && c.stage !== "Written assessment" && STAGES.indexOf(c.stage) < STAGES.indexOf("Written assessment")) db.prepare("UPDATE candidates SET stage='Written assessment', stage_at=datetime('now') WHERE id=?").run(c.id);
     logEvent(c.id, "interview_link", `${kind} ${tok}`);

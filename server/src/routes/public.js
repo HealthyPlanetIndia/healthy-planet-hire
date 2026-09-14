@@ -249,7 +249,7 @@ pub.post("/book/:token", async (req, res, next) => {
     await fire("booked", c.id, {});
     const role = rowRole(db.prepare("SELECT * FROM roles WHERE id=?").get(c.role_id));
     const when = new Date(slot.starts_at).toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
-    try { if (c.phone || c.email) await deliver(c, c.phone ? "whatsapp" : "email", fill(getTemplates()["School interview"], c, role, { slots: `${when} at ${slot.location}` })); } catch {}
+    try { if (c.phone || c.email) await deliver(c, c.phone ? "whatsapp" : "email", fill(getTemplates()[slot.stage] || getTemplates()["Leadership interview"], c, role, { slots: `${when} at ${slot.location}` })); } catch {}
     res.json({ ok: true, slot });
   } catch (e) { next(e); }
 });

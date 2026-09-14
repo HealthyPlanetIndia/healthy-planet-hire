@@ -18,14 +18,16 @@ export default function SharedReport() {
       <div className="muted">{d.role} · currently at {d.stage}</div>
       <div className="row" style={{ marginTop: 12, gap: 16 }}>
         {s && <div><div className="muted" style={{ fontSize: 12 }}>Resume screening</div><Score v={s.overall} /><span className="muted"> /100 · {s.recommendation}</span></div>}
-        {iv && <div><div className="muted" style={{ fontSize: 12 }}>AI interview</div><Score v={iv.overall} /><span className="muted"> /100 · {iv.recommendation}</span></div>}
+        {iv && <div><div className="muted" style={{ fontSize: 12 }}>AI interview</div><Score v={iv.overall} /><span className="muted"> /100{iv.band ? " on assessed competencies" : ""} · {iv.recommendation}</span></div>}
         {evals.length > 0 && <div><div className="muted" style={{ fontSize: 12 }}>Panel ({evals.length})</div><b>{(evals.reduce((a, e) => a + avg(e), 0) / evals.length).toFixed(1)}</b><span className="muted"> /5</span></div>}
       </div>
     </div>
     {s && <div className="card"><b>Screening against the role criteria</b><div className="muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>{s.summary}</div>
       {s.criteria.map((cr) => { const def = d.criteria.find((x) => x.id === cr.id); return <div key={cr.id} style={{ borderLeft: "3px solid var(--line)", paddingLeft: 10, marginBottom: 8, fontSize: 13 }}><div className="row" style={{ justifyContent: "space-between" }}><span>{def?.text || cr.id}</span><Pill v={cr.verdict} /></div>{cr.evidence && <div className="evidence">“{cr.evidence}”</div>}</div>; })}</div>}
-    {iv && <div className="card"><b>AI interview</b><div className="muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>{iv.summary}</div>
-      {iv.dimensions.map((x, i) => <div key={i} style={{ fontSize: 13, marginBottom: 6 }}><div className="row" style={{ justifyContent: "space-between" }}><span>{x.name}</span><Score v={x.score} /></div><div className="muted" style={{ fontSize: 12 }}>{x.note}</div></div>)}
+    {iv && <div className="card"><b>AI interview</b>{iv.band && <span style={{ marginLeft: 8, fontWeight: 700, color: iv.band === "Not now" ? "#B0463C" : iv.band === "Borderline" ? "#8A6A10" : "var(--green)" }}>{iv.band}</span>}<div className="muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>{iv.summary}</div>
+      {(iv.competencies || []).map((x, i) => <div key={i} style={{ fontSize: 13, marginBottom: 6 }}><div className="row" style={{ justifyContent: "space-between" }}><span>{x.name}</span><Pill v={x.verdict} /></div><div className="muted" style={{ fontSize: 12 }}>{x.note}</div></div>)}
+      {(iv.dimensions || []).map((x, i) => <div key={i} style={{ fontSize: 13, marginBottom: 6 }}><div className="row" style={{ justifyContent: "space-between" }}><span>{x.name}</span><Score v={x.score} /></div><div className="muted" style={{ fontSize: 12 }}>{x.note}</div></div>)}
+      {iv.verify_next_stage?.length > 0 && <div style={{ fontSize: 13, marginTop: 6 }}><b>Verify at the next stage:</b> {iv.verify_next_stage.join(" / ")}</div>}
       <div style={{ fontSize: 13, marginTop: 8 }}><b>Strengths:</b> {iv.strengths}</div><div style={{ fontSize: 13 }}><b>Concerns:</b> {iv.concerns}</div>
       {iv.suggested_questions && <div style={{ fontSize: 13, marginTop: 6 }}><b>Suggested for your interview:</b> {iv.suggested_questions.join(" / ")}</div>}
       {d.interview.integrity && d.interview.integrity !== "clear" && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Integrity check: {d.interview.integrity}. Ask the recruiting team for detail.</div>}</div>}
