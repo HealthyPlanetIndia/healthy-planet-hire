@@ -9,6 +9,7 @@ import { mailEnabled, sendEmail } from "../services/email.js";
 import { smsEnabled, sendSms } from "../services/sms.js";
 import { videoEnabled } from "../services/video.js";
 import { transcribeEnabled, transcribeBuffer } from "../services/transcribe.js";
+import { ttsEnabled } from "../services/tts.js";
 
 export const setup = Router();
 setup.use(requireAdmin);
@@ -25,6 +26,7 @@ setup.get("/", async (req, res) => {
     { key: "email", label: "Email sending", ok: mailEnabled(), fix: "Add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM.", optional: true },
     { key: "sms", label: "SMS", ok: smsEnabled(), fix: "Add MSG91_AUTHKEY and MSG91_SENDER, or Twilio keys.", optional: true },
     { key: "transcribe", label: "Accurate transcription of spoken answers (Deepgram)", ok: transcribeEnabled(), fix: "Add DEEPGRAM_API_KEY. Without it, the candidate's phone does the transcription, which struggles with Hindi-English mixing.", optional: true },
+    { key: "tts", label: "Natural voice for Maya (ElevenLabs)", ok: ttsEnabled(), fix: "Add ELEVENLABS_API_KEY. Without it, candidates hear their device's built-in voice, which sounds mechanical and varies by phone.", optional: true },
     { key: "video", label: "Live video rooms (Daily.co)", ok: videoEnabled(), fix: "Add DAILY_API_KEY and point Daily's webhook at " + publicUrl() + "/api/public/webhooks/daily.", optional: true },
     { key: "templates", label: "Message templates rewritten in your words", ok: counts.templates > 0, fix: "Settings → Message templates. Edit at least one and save." },
     { key: "roles", label: "A real role created", ok: counts.roles > 0, fix: "Roles → New role." },

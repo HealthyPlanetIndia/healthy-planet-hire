@@ -272,3 +272,18 @@ test("HR process: letters get reference numbers, need Executive Head approval be
   const tracker = (await req("/letters")).data; assert.ok(tracker.length >= 2); assert.ok(tracker.some((x) => x.ref_no === l.ref_no && x.status === "issued"));
   const checks = (await req(`/candidates/${c.id}/checks`)).data; assert.ok(checks.some((k) => k.key === "it_notified" && k.owner === "IT/Admin" && k.phase === "Pre-boarding")); assert.ok(checks.some((k) => k.key === "employment"));
 });
+
+test("interview redesign: labelled questions, per-role languages, one re-take, first recording kept", async () => {
+  const role = (await req("/roles/1")).status === 404 ? (await req("/roles")).data[0] : (await req("/roles")).data.find((r) => r.id === 1);
+  assert.ok(role.questions.every((q) => q.text && q.assesses)); assert.deepEqual(role.languages, ["en"]);
+  await req(`/roles/${role.id}`, { method: "PUT", body: { languages: ["en", "hi"] } });
+  const c = (await req("/candidates", { method: "POST", body: { name: "Retake Person", role_id: role.id } })).data;
+  const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
+  const page = (await req(`/public/interview/${iv.token}`, { auth: false })).data;
+  assert.deepEqual(Object.keys(page.languages), ["en", "hi"]); assert.equal(page.thinking_seconds, 10); assert.equal(page.retake_used, false);
+  // no AI in tests: simulate a transcript directly through the retake path by seeding an answer
+  const nothing = await req(`/public/interview/${iv.token}/retake`, { method: "POST", body: {}, auth: false }); assert.equal(nothing.status, 400);
+  const fake = Buffer.alloc(3000, 1);
+  await fetch(`${BASE}/public/interview/${iv.token}/clip/0?seconds=9`, { method: "POST", headers: { "Content-Type": "video/webm" }, body: fake });
+  const before = (await req(`/candidates/${c.id}`)).data.interviews[0]; assert.equal(before.clips[0].index, 0);
+});

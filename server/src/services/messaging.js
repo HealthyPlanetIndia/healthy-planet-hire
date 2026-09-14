@@ -5,7 +5,7 @@ import { smsEnabled, sendSms } from "./sms.js";
 
 export const DEFAULT_TEMPLATES = {
   Screened: "Hello {name}, thank you for applying for the {role} position at Healthy Planet School. We have reviewed your profile and would like to move you to the next step: a short structured interview you can complete on your phone. We will send the link shortly.",
-  "AI interview": "Hello {name}, here is your first-round interview link for {role} at Healthy Planet School: {link}\nIt takes about 15 minutes, works on any phone, and you can complete it any time before {deadline}. All the best!",
+  "AI interview": "Hello {name}, thank you for applying for {role} at Healthy Planet School. The first round is a recorded video interview with Maya, our AI interviewer: about 6 questions with follow-ups and a short role play, roughly 15 to 20 minutes. Please complete it before {deadline}.\n\nTo do it justice:\n1. Use a laptop or desktop if you can (a phone works if placed on a stable surface at eye level).\n2. A quiet, private, well-lit room, with the light in front of you.\n3. 20 uninterrupted minutes; no notes, no help.\n4. You get 10 seconds to think before each answer, you can ask Maya to repeat a question, and you may re-record one answer.\n\nYour link: {link}\n\nAll the best. Reply here if you have any difficulty.",
   Shortlist: "Hello {name}, good news. You have been shortlisted for {role} at Healthy Planet School and we would like to meet you at the campus. Which of these slots works for you? {slots}",
   "School interview": "Hello {name}, a reminder about your interview for {role} at Healthy Planet School on {slots}. Please bring your original certificates. Reply here if anything changes.",
   Offer: "Hello {name}, we are delighted to offer you the {role} position at Healthy Planet School. The formal offer letter follows by email. Please confirm your joining date so we can begin onboarding.",
@@ -26,7 +26,7 @@ export const DEFAULT_TEMPLATES = {
 
 export function getTemplates() {
   const t = { ...DEFAULT_TEMPLATES };
-  for (const r of db.prepare("SELECT key, body FROM templates").all()) t[r.key] = r.body;
+  for (const r of db.prepare("SELECT key, body FROM templates").all()) if (!r.key.startsWith("tts_")) t[r.key] = r.body;
   return t;
 }
 export function fill(tpl, cand, role, extra = {}) {

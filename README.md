@@ -120,6 +120,29 @@ Applied → Screened → AI interview → Shortlist → Demo lesson → School i
   volume, integrity outcomes, panel score averages.
 - **Hindi**: recruiter-side labels switch with the हिं/EN button; candidate pages are bilingual.
 
+## How the AI interview treats candidates fairly
+
+Agreed after the school's own test of the interview:
+
+- The first screen is a briefing, not a form: what the round is, how it is assessed, and a "Before you
+  begin" checklist (20 uninterrupted minutes, quiet well-lit room, laptop preferred or phone on a stable
+  surface, the rules) that must be ticked; then a camera, light and microphone check.
+- Maya is briefed on the role like a panel member (grade band, subject, children's ages) and must keep
+  every example inside that band; an example from another age group is never a weakness.
+- Each question carries the competency it assesses. The report judges an answer only against that, reports
+  anything not asked about as "not assessed", uses cautious language, and lists what the demo lesson and
+  panel should verify. Spoken English is never scored from the transcript.
+- Transcription confidence is shown per answer; unreliable answers are marked, not marked down. A
+  recruiter who watches the recording can add a note and rewrite the report.
+- 10 seconds of thinking time, then recording starts; "repeat the question" works by voice; one
+  re-take per interview, with both recordings kept and the second labelled.
+- Uploads retry, time out visibly, and never trap the candidate; a dropped connection resumes with the
+  camera re-requested; a clear completion screen.
+- Candidates do not see a transcript or the report. English is the default interview language; others
+  are enabled per role.
+- Maya's voice: with `ELEVENLABS_API_KEY`, a natural voice with school-chosen accent, tone and speed
+  (Settings → Maya's voice); otherwise the device voice.
+
 ## The AI interview is a video interview
 
 Candidates open the link on a phone or laptop; camera and microphone are required. Maya asks each

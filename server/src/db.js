@@ -118,6 +118,9 @@ for (const sql of [
   "ALTER TABLE candidates ADD COLUMN hr_discussion TEXT",
   "ALTER TABLE checks ADD COLUMN owner TEXT DEFAULT 'HR'",
   "ALTER TABLE checks ADD COLUMN phase TEXT",
+  "ALTER TABLE roles ADD COLUMN languages TEXT",
+  "ALTER TABLE roles ADD COLUMN brief TEXT DEFAULT ''",
+  "ALTER TABLE interviews ADD COLUMN retakes TEXT DEFAULT '[]'",
   "ALTER TABLE interviews ADD COLUMN recording_id TEXT",
   "ALTER TABLE interviews ADD COLUMN transcript_id TEXT",
   "ALTER TABLE interviews ADD COLUMN clips TEXT DEFAULT '[]'",
@@ -203,14 +206,18 @@ export const DEFAULT_CHECKS = [
 
 export const j = (s, fb = null) => { try { return s == null ? fb : JSON.parse(s); } catch { return fb; } };
 export const rowCandidate = (r) => r && { ...r, screening: j(r.screening) };
-export const rowRole = (r) => r && { ...r, criteria: j(r.criteria, []), questions: j(r.questions, []), rubric: j(r.rubric) || DEFAULT_RUBRIC, rubrics: { ...DEFAULT_RUBRICS, ...(j(r.rubric) ? { "Demo lesson": j(r.rubric) } : {}), ...(j(r.rubrics) || {}) }, written_prompt: r.written_prompt || DEFAULT_WRITTEN_PROMPT };
+export const rowRole = (r) => r && { ...r, criteria: j(r.criteria, []), questions: normQuestions(j(r.questions, [])), languages: j(r.languages) || ["en"], rubric: j(r.rubric) || DEFAULT_RUBRIC, rubrics: { ...DEFAULT_RUBRICS, ...(j(r.rubric) ? { "Demo lesson": j(r.rubric) } : {}), ...(j(r.rubrics) || {}) }, written_prompt: r.written_prompt || DEFAULT_WRITTEN_PROMPT };
 export const rowCandidateFull = (r) => r && { ...rowCandidate(r), screening_call: j(r.screening_call), final_review: j(r.final_review), hr_discussion: j(r.hr_discussion) };
 export const rowRule = (r) => r && { ...r, conditions: j(r.conditions, {}), actions: j(r.actions, []) };
 export const LANGUAGES = { en: "English", hi: "हिन्दी", pa: "ਪੰਜਾਬੀ", bn: "বাংলা", mr: "मराठी", gu: "ગુજરાતી", ta: "தமிழ்", te: "తెలుగు", kn: "ಕನ್ನಡ", ml: "മലയാളം", ur: "اردو" };
 export const userCampuses = (u) => { const c = j(u?.campuses); return Array.isArray(c) && c.length ? c : null; }; // null = all campuses
 export const rowEvaluation = (r) => r && { ...r, scores: j(r.scores) };
 export const norm = { phone: (p) => (p || "").replace(/\D/g, "").slice(-10), email: (e) => (e || "").trim().toLowerCase() };
-export const rowInterview = (r) => r && { ...r, transcript: j(r.transcript, []), report: j(r.report), signals: j(r.signals, []), snapshots: j(r.snapshots, []), integrity: j(r.integrity), sessions: j(r.sessions, []), clips: j(r.clips, []) };
+export const rowInterview = (r) => r && { ...r, transcript: j(r.transcript, []), report: j(r.report), signals: j(r.signals, []), snapshots: j(r.snapshots, []), integrity: j(r.integrity), sessions: j(r.sessions, []), clips: j(r.clips, []), retakes: j(r.retakes, []) };
+// What an interview question is designed to assess. The report scores each answer only against its own label.
+export const COMPETENCIES = ["Classroom thinking", "Child-centred practice", "Handling parents", "School values", "Subject knowledge", "Inquiry or project-based learning", "Digital tools", "Classroom management", "Reflection and growth", "Other"];
+// Questions may be stored as strings (older roles) or as { text, assesses }
+export const normQuestions = (qs) => (qs || []).map((q) => (typeof q === "string" ? { text: q, assesses: "Classroom thinking" } : { text: q.text || "", assesses: q.assesses || "Classroom thinking" })).filter((q) => q.text.trim());
 
 export function audit(req, summary) {
   db.prepare("INSERT INTO audit (user_id, user_name, method, path, summary) VALUES (?,?,?,?,?)").run(req.user?.id || null, req.user?.name || "public", req.method, req.originalUrl.slice(0, 200), (summary || "").slice(0, 300));

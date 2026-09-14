@@ -10,15 +10,16 @@ import { mailEnabled } from "../services/email.js";
 import { runFollowups } from "../services/followups.js";
 import { DEFAULT_RULES } from "../services/rules.js";
 import { smsEnabled } from "../services/sms.js";
-import { rowRule, LANGUAGES } from "../db.js";
+import { rowRule, LANGUAGES, COMPETENCIES } from "../db.js";
 import { handleInbound } from "./webhooks.js";
 import crypto from "crypto";
 import { clipsDiskUsage } from "../services/clips.js";
 import { transcribeEnabled } from "../services/transcribe.js";
+import { ttsEnabled, VOICES, voiceSettings, speak } from "../services/tts.js";
 import { createHash } from "crypto";
 
 export const misc = Router();
-misc.get("/status", (req, res) => res.json({ onboarding_email: process.env.ONBOARDING_NOTIFY_EMAIL || null, rounds: ["Leadership interview", "Subject assessment", "Demo lesson"], transcribe: transcribeEnabled(), video_storage_mb: Math.round(clipsDiskUsage() / 1048576), ai: aiEnabled(), whatsapp: waEnabled(), email: mailEnabled(), sms: smsEnabled(), video: videoEnabled(), languages: LANGUAGES, campuses: db.prepare("SELECT DISTINCT campus FROM roles WHERE campus <> '' ORDER BY campus").all().map((r) => r.campus), public_url: process.env.PUBLIC_URL || "http://localhost:5173", followup_days: +(process.env.FOLLOWUP_DAYS || 3), retention_months: +(process.env.RETENTION_MONTHS || 12), snapshot_days: +(process.env.SNAPSHOT_DAYS || 90), stages: STAGES }));
+misc.get("/status", (req, res) => res.json({ tts: ttsEnabled(), voices: Object.fromEntries(Object.entries(VOICES).map(([k, v]) => [k, v.label])), voice_settings: voiceSettings(), competencies: COMPETENCIES, onboarding_email: process.env.ONBOARDING_NOTIFY_EMAIL || null, rounds: ["Leadership interview", "Subject assessment", "Demo lesson"], transcribe: transcribeEnabled(), video_storage_mb: Math.round(clipsDiskUsage() / 1048576), ai: aiEnabled(), whatsapp: waEnabled(), email: mailEnabled(), sms: smsEnabled(), video: videoEnabled(), languages: LANGUAGES, campuses: db.prepare("SELECT DISTINCT campus FROM roles WHERE campus <> '' ORDER BY campus").all().map((r) => r.campus), public_url: process.env.PUBLIC_URL || "http://localhost:5173", followup_days: +(process.env.FOLLOWUP_DAYS || 3), retention_months: +(process.env.RETENTION_MONTHS || 12), snapshot_days: +(process.env.SNAPSHOT_DAYS || 90), stages: STAGES }));
 misc.get("/templates", (req, res) => res.json(getTemplates()));
 misc.put("/templates", requireStaff, (req, res) => {
   const up = db.prepare("INSERT INTO templates (key, body) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET body = excluded.body");
@@ -55,6 +56,19 @@ misc.put("/rules/:id", requireStaff, (req, res) => { const cur = rowRule(db.prep
 misc.delete("/rules/:id", requireStaff, (req, res) => { db.prepare("DELETE FROM rules WHERE id=?").run(req.params.id); res.json({ ok: true }); });
 
 // FAQ answers for the WhatsApp assistant
+// Interview voice settings: accent, tone (stability/style), speed. Stored with the templates.
+misc.put("/voice", requireStaff, (req, res) => {
+  const up = db.prepare("INSERT INTO templates (key, body) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET body = excluded.body");
+  if (req.body.voice && VOICES[req.body.voice]) up.run("tts_voice", req.body.voice);
+  if (req.body.speed) up.run("tts_speed", String(Math.min(1.2, Math.max(0.7, +req.body.speed))));
+  if (req.body.stability != null) up.run("tts_stability", String(Math.min(1, Math.max(0, +req.body.stability))));
+  if (req.body.style != null) up.run("tts_style", String(Math.min(1, Math.max(0, +req.body.style))));
+  audit(req, "voice settings changed"); res.json(voiceSettings());
+});
+misc.post("/voice/preview", requireStaff, async (req, res) => {
+  if (!ttsEnabled()) return res.status(400).json({ error: "Set ELEVENLABS_API_KEY to enable the natural voice" });
+  try { const buf = await speak(req.body.text || "Hello, I'm Maya. Thank you for joining today. When you're ready, I'll ask the first question."); res.setHeader("Content-Type", "audio/mpeg"); res.send(buf); } catch (e) { res.status(502).json({ error: e.message }); }
+});
 misc.get("/faqs", requireStaff, (req, res) => res.json(db.prepare("SELECT * FROM faqs ORDER BY id").all()));
 misc.post("/faqs", requireStaff, (req, res) => { const { question, answer } = req.body; if (!question || !answer) return res.status(400).json({ error: "Question and answer required" }); db.prepare("INSERT INTO faqs (question, answer) VALUES (?,?)").run(question, answer); res.json(db.prepare("SELECT * FROM faqs ORDER BY id").all()); });
 misc.delete("/faqs/:id", requireStaff, (req, res) => { db.prepare("DELETE FROM faqs WHERE id=?").run(req.params.id); res.json({ ok: true }); });

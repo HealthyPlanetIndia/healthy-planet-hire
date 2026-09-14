@@ -55,7 +55,7 @@ app.use("/api", requireAuth, misc);
 const webDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "dist");
 if (fs.existsSync(webDir)) {
   app.use(express.static(webDir, { maxAge: "1h", index: false }));
-  app.get(/^(?!\/api\/).*/, (req, res) => res.sendFile(path.join(webDir, "index.html")));
+  app.get(/^(?!\/api\/).*/, (req, res) => { res.setHeader("Cache-Control", "no-store"); res.sendFile(path.join(webDir, "index.html")); });
 }
 
 app.use((err, req, res, next) => { console.error(err); res.status(err.status || 500).json({ error: err.message || "Something went wrong" }); });

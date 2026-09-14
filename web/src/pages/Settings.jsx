@@ -46,6 +46,7 @@ export default function Settings() {
         {ret && <div className="muted" style={{ marginTop: 6 }}>Cleared photos from {ret.snapshotsCleared} interview{ret.snapshotsCleared === 1 ? "" : "s"}, anonymised {ret.anonymized} candidate{ret.anonymized === 1 ? "" : "s"}.</div>}
         {auditLog && <div style={{ marginTop: 10, maxHeight: 300, overflowY: "auto", fontSize: 12 }}>{auditLog.map((a) => <div key={a.id} className="row" style={{ justifyContent: "space-between", padding: "3px 0", borderTop: "1px solid var(--line)" }}><span>{a.user_name}: {a.summary}</span><span className="muted">{new Date(a.created_at + "Z").toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></div>)}</div>}
       </div>}
+      <VoiceSettings status={status} say={say} />
       <LetterTracker />
       {status && <div className="card" style={{ fontSize: 13 }}>
         <b>Connections</b>
@@ -64,5 +65,22 @@ function LetterTracker() {
     <div className="row" style={{ justifyContent: "space-between" }}><b>Letter issuance tracker</b><button className="small" onClick={() => api("/letters").then(setRows)}>{rows ? "Refresh" : "Show"}</button></div>
     <div className="muted" style={{ marginTop: 4 }}>Every offer and appointment letter with its reference number, approver and issue date. Experience, relieving, warning and NOC letters for existing staff belong to the HR system, not recruiting.</div>
     {rows && <div style={{ marginTop: 8, maxHeight: 300, overflowY: "auto" }}>{rows.length === 0 && <div className="muted">No letters yet.</div>}{rows.map((l) => <div key={l.id} className="row" style={{ justifyContent: "space-between", padding: "4px 0", borderTop: "1px solid var(--line)" }}><span><code>{l.ref_no}</code> · {l.candidate} · <span style={{ textTransform: "capitalize" }}>{l.type}</span></span><span className="muted">{l.status}{l.approved_by_name ? ` · ${l.approved_by_name}` : ""}{l.issued_at ? ` · ${new Date(l.issued_at + "Z").toLocaleDateString("en-IN")}` : ""}</span></div>)}</div>}
+  </div>;
+}
+
+function VoiceSettings({ status, say }) {
+  const [v, setV] = useState(null);
+  useEffect(() => { if (status?.voice_settings) setV(status.voice_settings); }, [status]);
+  if (!status || !v) return null;
+  const tone = v.stability >= 0.75 ? "calm" : v.stability >= 0.5 ? "balanced" : "expressive";
+  return <div className="card" style={{ fontSize: 13 }}>
+    <b>Maya's voice</b>
+    <div className="muted" style={{ margin: "4px 0 8px" }}>{status.tts ? "Natural voice is on. Choose the accent, tone and speed candidates hear." : "Natural voice is off: candidates hear their device's built-in voice, which varies by phone. Add ELEVENLABS_API_KEY in Render to enable a calm, consistent voice (about ₹2 to ₹4 per interview)."}</div>
+    <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0 10px" }}>
+      <Field label="Accent and voice"><select value={v.voice} onChange={(e) => setV({ ...v, voice: e.target.value })}>{Object.entries(status.voices || {}).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+      <Field label={`Tone: ${tone}`}><input type="range" min="0.3" max="1" step="0.05" value={v.stability} onChange={(e) => setV({ ...v, stability: +e.target.value })} /></Field>
+      <Field label={`Speed: ${v.speed}x`}><input type="range" min="0.75" max="1.15" step="0.01" value={v.speed} onChange={(e) => setV({ ...v, speed: +e.target.value })} /></Field>
+    </div>
+    <div className="row"><button className="primary" onClick={() => api("/voice", { method: "PUT", body: v }).then((r) => { setV(r); say("Voice saved"); })}>Save</button><button disabled={!status.tts} onClick={async () => { await api("/voice", { method: "PUT", body: v }); const r = await fetch("/api/voice/preview", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("hph_token")}`, "Content-Type": "application/json" }, body: JSON.stringify({}) }); if (!r.ok) return say("Preview failed"); new Audio(URL.createObjectURL(await r.blob())).play(); }}>Hear a sample</button></div>
   </div>;
 }

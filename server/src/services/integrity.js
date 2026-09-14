@@ -13,10 +13,15 @@ export function ruleBasedFlags(interview) {
   else if (away >= 2) reasons.push({ level: "medium", text: `Left the interview screen ${away} times` });
 
   const pastes = sig.filter((s) => s.type === "paste" && (s.detail?.length || 0) >= PASTE_MIN_CHARS);
+  if (sig.some((s) => s.type === "clip_failed")) reasons.push({ level: "low", text: "Some video uploads failed on the candidate's connection; those answers have transcript only" });
   if (pastes.length) reasons.push({ level: "high", text: `Pasted text into ${pastes.length} answer${pastes.length > 1 ? "s" : ""} (${pastes.map((p) => p.detail.length).join(", ")} characters)` });
 
-  const fast = answers.filter((a) => a.meta.seconds > 3 && a.content.length / a.meta.seconds > TYPING_CPS_MAX);
-  if (fast.length) reasons.push({ level: fast.length > 1 ? "high" : "medium", text: `${fast.length} answer${fast.length > 1 ? "s" : ""} arrived faster than typing speed (${fast.map((a) => `${Math.round(a.content.length / a.meta.seconds)} chars/sec`).join(", ")})` });
+  // Typing-speed check applies only to typed interviews. Spoken answers naturally arrive at 8 to 12 characters a second.
+  const spoken = (interview.mode || "video") !== "text" || (interview.clips || []).length > 0 || answers.some((a) => a.meta?.transcribed);
+  if (!spoken) {
+    const fast = answers.filter((a) => a.meta.seconds > 3 && a.content.length / a.meta.seconds > TYPING_CPS_MAX);
+    if (fast.length) reasons.push({ level: fast.length > 1 ? "high" : "medium", text: `${fast.length} answer${fast.length > 1 ? "s" : ""} arrived faster than typing speed (${fast.map((a) => `${Math.round(a.content.length / a.meta.seconds)} chars/sec`).join(", ")})` });
+  }
 
   const longGaps = answers.filter((a) => a.meta.seconds > 420);
   if (longGaps.length) reasons.push({ level: "low", text: `${longGaps.length} answer${longGaps.length > 1 ? "s" : ""} took over 7 minutes` });

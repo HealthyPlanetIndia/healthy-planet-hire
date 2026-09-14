@@ -70,16 +70,17 @@ export default function CandidatePanel({ id, roles, onClose }) {
             {iv.kind === "video" && !iv.recording_id && iv.status === "completed" && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Recording is being processed.</div>}
             {!iv.report && <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{iv.status === "pending" ? `Link sent, not yet opened. Expires ${new Date(iv.expires_at).toLocaleDateString("en-IN")}.` : iv.status === "in_progress" ? "Candidate is mid-interview." : "Report is being written, refresh in a moment."}<br /><span style={{ wordBreak: "break-all" }}>{iv.link}</span></div>}
             {iv.clips?.length > 0 && <Clips candId={id} iv={iv} say={say} />}
+            {iv.kind !== "written" && iv.status === "completed" && !(iv.clips?.length) && <div style={{ marginTop: 8, fontSize: 13, background: "#FDF3D6", borderRadius: 8, padding: "8px 10px" }}><b>No video was recorded.</b> {iv.signals?.some((x) => x.type === "camera_denied") ? "The candidate declined the camera." : iv.signals?.some((x) => x.type === "clip_failed") ? "Uploads failed on the candidate's connection and they continued without video." : "The candidate's device could not record, or the interview was taken before video recording was added."} The transcript below is from the device's own speech recognition.</div>}
             {iv.integrity && <Integrity iv={iv} />}
-            {iv.report && <>
+            {iv.report && iv.report.version === 2 && <ReportV2 iv={iv} c={c} say={say} reload={load} />}
+            {iv.report && iv.report.version !== 2 && <>
               <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{iv.report.summary}</div>
-              <div className="grid" style={{ marginTop: 10, gap: 6 }}>{iv.report.dimensions.map((d, i) => <div key={i} style={{ fontSize: 13 }}><div className="row" style={{ justifyContent: "space-between" }}><span>{d.name}</span><Score v={d.score} /></div><div style={{ height: 4, background: "var(--soft)", borderRadius: 2 }}><div style={{ width: `${d.score}%`, height: 4, background: "var(--blue)", borderRadius: 2 }} /></div><div className="muted" style={{ fontSize: 12 }}>{d.note}</div></div>)}</div>
+              <div className="grid" style={{ marginTop: 10, gap: 6 }}>{(iv.report.dimensions || []).map((d, i) => <div key={i} style={{ fontSize: 13 }}><div className="row" style={{ justifyContent: "space-between" }}><span>{d.name}</span><Score v={d.score} /></div><div className="muted" style={{ fontSize: 12 }}>{d.note}</div></div>)}</div>
               <div style={{ fontSize: 13, marginTop: 10 }}><b>Strengths:</b> {iv.report.strengths}</div>
               <div style={{ fontSize: 13, marginTop: 4 }}><b>Concerns:</b> {iv.report.concerns}</div>
               <div style={{ fontSize: 13, marginTop: 6, fontWeight: 500 }}>Recommendation: {iv.report.recommendation}</div>
-              {iv.report.suggested_questions && <div style={{ fontSize: 13, marginTop: 6 }}><b>For the panel:</b> {iv.report.suggested_questions.join(" / ")}</div>}
-              <details style={{ marginTop: 10, fontSize: 13 }}><summary>Transcript</summary>{iv.transcript.map((m, i) => <p key={i} style={{ margin: "6px 0" }}><b>{m.role === "assistant" ? "Maya" : c.name.split(" ")[0]}:</b> {m.content}{m.meta && <span className="muted"> · {m.meta.seconds}s, {Math.round(m.content.length / m.meta.seconds * 10) / 10} chars/s</span>}</p>)}</details>
-              <button className="small" style={{ marginTop: 10 }} onClick={() => { navigator.clipboard?.writeText(`${c.name} · ${role?.title}\nAI interview ${iv.report.overall}/100. ${iv.report.summary}\n\n${iv.report.dimensions.map((d) => `${d.name}: ${d.score}. ${d.note}`).join("\n")}\n\nStrengths: ${iv.report.strengths}\nConcerns: ${iv.report.concerns}\nRecommendation: ${iv.report.recommendation}`); say("Report copied for the hiring manager"); }}>Copy report to share</button>
+              <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Older report format. Press "Rewrite report" below to apply the current assessment rules.</div>
+              <button className="small" style={{ marginTop: 6 }} onClick={async () => { try { await api(`/candidates/${id}/interviews/${iv.id}/rereport`, { method: "POST", body: {} }); say("Report rewritten"); load(); } catch (e) { say(e.message); } }}>Rewrite report</button>
             </>}
           </div>}
         </div>}
@@ -231,7 +232,7 @@ function Clips({ candId, iv, say }) {
     {open && !clips && <div className="muted" style={{ fontSize: 13 }}>Loading...</div>}
     {open && clips && <div className="grid" style={{ gap: 12, marginTop: 8 }}>
       {clips.map((k) => <div key={k.index} style={{ fontSize: 13 }}>
-        <div className="muted" style={{ marginBottom: 4 }}><b>Q{k.index + 1}.</b> {k.question}</div>
+        <div className="muted" style={{ marginBottom: 4 }}><b>Q{(k.index % 1000) + 1}.</b> {k.question}{k.superseded && <span className="pill" style={{ background: "var(--soft)", marginLeft: 6 }}>first attempt, replaced</span>}{k.retake && <span className="pill" style={{ background: "#FDF3D6", color: "#8A6A10", marginLeft: 6 }}>re-take</span>}</div>
         <video controls preload="metadata" src={k.url} style={{ width: "100%", maxHeight: 280, background: "#000", borderRadius: 8 }} />
         <div style={{ marginTop: 4 }}><span className="muted">{k.browser_text ? "Transcript:" : "Heard by the phone:"}</span> {k.answer}{k.seconds ? <span className="muted"> · {Math.floor(k.seconds / 60)}:{String(k.seconds % 60).padStart(2, "0")}</span> : null}{k.confidence != null && <span className="muted"> · confidence {Math.round(k.confidence * 100)}%</span>}</div>
         {k.browser_text && k.browser_text !== k.answer && <details style={{ fontSize: 12 }}><summary className="muted">What the phone heard</summary>{k.browser_text}</details>}
@@ -327,5 +328,28 @@ function Letters({ c, id, say, save, reload }) {
         <button className="small" onClick={() => { navigator.clipboard?.writeText(l.body); say("Copied"); }}>Copy</button>
       </div>
     </div>)}
+  </div>;
+}
+
+const V = { demonstrated: ["#E6F1EA", "var(--green)", "Demonstrated"], weakness: ["#FBE5E2", "#B0463C", "Weakness shown"], not_assessed: ["var(--soft)", "var(--mute)", "Not assessed"], unreliable: ["#FDF3D6", "#8A6A10", "Transcription unreliable"] };
+const Verdict = ({ v }) => { const [bg, fg, l] = V[v] || V.not_assessed; return <span className="pill" style={{ background: bg, color: fg }}>{l}</span>; };
+function ReportV2({ iv, c, say, reload }) {
+  const r = iv.report; const [note, setNote] = useState(""); const [busy, setBusy] = useState(false);
+  const bandColor = { Strong: "var(--green)", Promising: "var(--green)", Borderline: "#8A6A10", "Not now": "#B0463C" }[r.band] || "var(--mute)";
+  return <div style={{ marginTop: 6, fontSize: 13 }}>
+    <div className="row" style={{ justifyContent: "space-between" }}><b style={{ color: bandColor, fontSize: 15 }}>{r.band}</b><span className="muted">{r.overall}/100 across assessed competencies only · {r.recommendation}</span></div>
+    <div style={{ marginTop: 4, lineHeight: 1.5 }}>{r.summary}</div>
+    <div style={{ marginTop: 10, fontWeight: 500 }}>By competency</div>
+    {(r.competencies || []).map((k, i) => <div key={i} style={{ padding: "6px 0", borderTop: "1px solid var(--line)" }}><div className="row" style={{ justifyContent: "space-between" }}><span>{k.name}</span><Verdict v={k.verdict} /></div><div className="muted" style={{ fontSize: 12 }}>{k.note}</div></div>)}
+    {r.role_play && r.role_play.verdict !== "not_assessed" && <div style={{ padding: "6px 0", borderTop: "1px solid var(--line)" }}><div className="row" style={{ justifyContent: "space-between" }}><span>Role play</span><Verdict v={r.role_play.verdict} /></div><div className="muted" style={{ fontSize: 12 }}>{r.role_play.note}</div></div>}
+    <details style={{ marginTop: 8 }}><summary>Answer by answer</summary>{(r.per_question || []).map((q, i) => <div key={i} style={{ padding: "6px 0", borderTop: "1px solid var(--line)" }}><div className="row" style={{ justifyContent: "space-between" }}><span><b>Q{(q.index ?? i) + 1}</b> · {q.assesses}</span><Verdict v={q.verdict} /></div>{q.evidence && <div className="evidence">“{q.evidence}”</div>}<div className="muted" style={{ fontSize: 12 }}>{q.note}</div></div>)}</details>
+    {r.transcription_issues && r.transcription_issues !== "none" && <div style={{ marginTop: 8, background: "#FDF3D6", borderRadius: 8, padding: "6px 10px", fontSize: 12 }}><b>Transcription:</b> {r.transcription_issues}. Watch the recording before relying on those answers.</div>}
+    <div style={{ marginTop: 8 }}><b>Strengths:</b> {r.strengths}</div>
+    <div style={{ marginTop: 4 }}><b>Concerns:</b> {r.concerns}</div>
+    {r.verify_next_stage?.length > 0 && <div style={{ marginTop: 8 }}><b>Verify at the demo lesson and panel:</b><ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{r.verify_next_stage.map((x, i) => <li key={i}>{x}</li>)}</ul></div>}
+    {iv.retakes?.length > 0 && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>The candidate re-recorded answer {iv.retakes[0].index + 1}; both recordings are kept under Video answers.</div>}
+    <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Spoken English is not scored from the transcript; it is assessed in person at the panel rounds. This report shortlists for humans and does not decide.</div>
+    {!isManager() && <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}><div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>Watched the recording and disagree with something? Add what you heard or saw and the report is rewritten with your note.</div><div className="row"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. In Q3 she clearly said 'rapport', not 'rapper'; the example was for Grade 4" style={{ flex: 1 }} /><button className="small" disabled={busy || !note.trim()} onClick={async () => { setBusy(true); try { await api(`/candidates/${c.id}/interviews/${iv.id}/rereport`, { method: "POST", body: { note } }); say("Report rewritten with your note"); setNote(""); reload(); } catch (e) { say(e.message); } setBusy(false); }}>{busy ? "Rewriting..." : "Rewrite report"}</button></div></div>}
+    <button className="small" style={{ marginTop: 10 }} onClick={() => { navigator.clipboard?.writeText(`${c.name} · ${c.role?.title}\n${r.band} (${r.overall}/100 on assessed competencies). ${r.recommendation}\n${r.summary}\n\n${(r.competencies || []).map((k) => `${k.name}: ${k.verdict.replace("_", " ")}. ${k.note}`).join("\n")}\n\nStrengths: ${r.strengths}\nConcerns: ${r.concerns}\nVerify next: ${(r.verify_next_stage || []).join("; ")}`); say("Copied"); }}>Copy report</button>
   </div>;
 }

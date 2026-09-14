@@ -1,7 +1,9 @@
 import { Router } from "express";
+import { VERSION } from "../version.js";
 import express from "express";
 import { saveClip, MAX_CLIP_BYTES, readClip, verifyClipToken } from "../services/clips.js";
 import { transcribeEnabled, transcribeClip, transcribeAllPending } from "../services/transcribe.js";
+import { ttsEnabled, speak } from "../services/tts.js";
 import { db, rowInterview, rowCandidate, rowRole, rowEvaluation, logEvent } from "../db.js";
 import { getTemplates, fill, deliver } from "../services/messaging.js";
 import { transcriptText } from "../services/video.js";
@@ -21,7 +23,7 @@ const load = (token) => {
 pub.get("/interview/:token", (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).json({ error: "This interview link is not valid" });
   const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
-  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: LANGUAGES, mode: x.i.mode || "video", allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: x.r.interview_mode === "interactive" && !!x.r.scenario, total: x.r.questions.length + (x.r.interview_mode === "interactive" && x.r.scenario ? 4 : 0), proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: Object.fromEntries(Object.entries(LANGUAGES).filter(([k]) => x.r.languages.includes(k))), mode: x.i.mode || "video", tts: ttsEnabled(), retake_used: x.i.retakes.length > 0, thinking_seconds: 10, candidate_email: !!x.c.email, allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: x.r.interview_mode === "interactive" && !!x.r.scenario, total: x.r.questions.length + (x.r.interview_mode === "interactive" && x.r.scenario ? 4 : 0), proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
 });
 
 pub.post("/interview/:token/start", async (req, res, next) => {
@@ -48,7 +50,8 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
     const idx = x.i.transcript.filter((m) => m.role === "user").length;
     const served = x.i.clips.find((c) => c.index === idx)?.transcript;
     const content = served && served.length > 2 ? served : answer;
-    const transcript = [...x.i.transcript, { role: "user", content, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)), ...(served ? { browser_text: answer, transcribed: true } : {}) } }];
+    const isRetake = x.i.retakes.some((r) => r.index === idx);
+    const transcript = [...x.i.transcript, { role: "user", content, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)), ...(served ? { browser_text: answer, transcribed: true } : {}), ...(isRetake ? { retake: true } : {}) } }];
     const t = await interviewTurn(x.r, x.c, x.i.language, transcript.map(({ role, content }) => ({ role, content })));
     transcript.push({ role: "assistant", content: t.content, at: Date.now() });
     db.prepare("UPDATE interviews SET transcript=? WHERE id=?").run(JSON.stringify(transcript), x.i.id);
@@ -65,7 +68,9 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
 async function finishInterview(x, transcript) {
   // Give in-flight transcriptions a moment, then fill any gaps, so the report reads the best text we have
   if (transcribeEnabled()) { await new Promise((r) => setTimeout(r, 4000)); await transcribeAllPending(x.i.id); transcript = load(x.i.token).i.transcript; }
-  const rep = await interviewReport(x.r, x.c, transcript.map(({ role, content }) => ({ role, content })));
+  const fresh0 = load(x.i.token).i;
+  const confidence = fresh0.clips.map((k) => k.confidence);
+  const rep = await interviewReport(x.r, x.c, transcript, { confidence: Object.fromEntries(fresh0.clips.map((k) => [k.index, k.confidence])) });
   const fresh = load(x.i.token).i; // pick up signals that arrived during the interview
   let ai = null; try { ai = await analyseAnswers(x.r, x.c, transcript); } catch {}
   const integrity = combine(ruleBasedFlags({ ...fresh, transcript }), ai);
@@ -86,6 +91,34 @@ pub.post("/interview/:token/clip/:index", express.raw({ type: ["video/*", "appli
   // Transcribe in the background; the browser's own transcript is used until this lands
   if (transcribeEnabled()) transcribeClip(x.i.id, +req.params.index).catch((e) => logEvent(x.c.id, "transcribe_failed", `clip ${req.params.index}: ${e.message}`));
 });
+// Maya's voice for a line of the interview (falls back to the browser voice when the service is not configured)
+pub.post("/interview/:token/speak", async (req, res) => {
+  const x = load(req.params.token); if (!x) return res.status(404).end();
+  if (!ttsEnabled()) return res.status(204).end();
+  const line = String(req.body.text || "").slice(0, 1200); if (!line) return res.status(400).end();
+  try { const buf = await speak(line, x.i.language); res.setHeader("Content-Type", "audio/mpeg"); res.setHeader("Cache-Control", "private, max-age=3600"); res.send(buf); } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// One re-take per interview: rolls the transcript back to before the last answer, keeps the first recording, and labels the second
+pub.post("/interview/:token/retake", (req, res) => {
+  const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
+  if (x.i.status === "completed") return res.status(400).json({ error: "The interview is complete" });
+  if (x.i.retakes.length) return res.status(400).json({ error: "You have already used your one re-take" });
+  const lastUser = x.i.transcript.map((m) => m.role).lastIndexOf("user"); if (lastUser < 0) return res.status(400).json({ error: "Nothing to re-take yet" });
+  const idx = x.i.transcript.slice(0, lastUser + 1).filter((m) => m.role === "user").length - 1;
+  const prev = x.i.transcript[lastUser];
+  const transcript = x.i.transcript.slice(0, lastUser);
+  const clips = x.i.clips.map((k) => (k.index === idx ? { ...k, index: 1000 + idx, superseded: true } : k)); // keep the first recording, out of the way
+  db.prepare("UPDATE interviews SET transcript=?, clips=?, retakes=? WHERE id=?").run(JSON.stringify(transcript), JSON.stringify(clips), JSON.stringify([{ index: idx, previous: prev.content, at: Date.now() }]), x.i.id);
+  logEvent(x.c.id, "retake", `answer ${idx + 1}`);
+  res.json({ transcript: transcript.map(({ role, content }) => ({ role, content })), index: idx });
+});
+// Send the candidate their own link by email so they can open it on a laptop
+pub.post("/interview/:token/email-link", async (req, res) => {
+  const x = load(req.params.token); if (!x || !x.c.email) return res.status(400).json({ error: "No email on file" });
+  try { await deliver(x.c, "email", `Hello ${x.c.name.split(" ")[0]},\n\nHere is your interview link for ${x.r.title} at Healthy Planet School, to open on a laptop or desktop:\n${(process.env.PUBLIC_URL || "").replace(/\/$/, "")}/interview/${x.i.token}\n\nBefore you begin: a quiet, well-lit room; 20 uninterrupted minutes; camera at eye level.`, `Your interview link: ${x.r.title}`); res.json({ ok: true }); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // The candidate can see how their last answer was transcribed (server version once it lands, phone version until then)
 pub.get("/interview/:token/transcript/:index", (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
@@ -117,7 +150,7 @@ pub.get("/clip/:t", (req, res) => {
 pub.post("/interview/:token/signal", (req, res) => {
   const x = load(req.params.token); if (!x || x.i.status === "completed") return res.json({ ok: true });
   const { type, detail = "" } = req.body || {};
-  if (!["hidden", "blur", "paste", "copy", "faces", "camera_denied", "camera_ok"].includes(type)) return res.status(400).json({ error: "Unknown signal" });
+  if (!["hidden", "blur", "paste", "copy", "faces", "camera_denied", "camera_ok", "clip_failed", "resumed", "dark", "audio_low"].includes(type)) return res.status(400).json({ error: "Unknown signal" });
   const signals = [...x.i.signals, { type, detail: String(detail).slice(0, 400), at: Date.now() }].slice(-300);
   db.prepare("UPDATE interviews SET signals=? WHERE id=?").run(JSON.stringify(signals), x.i.id);
   res.json({ ok: true });
@@ -255,6 +288,8 @@ pub.get("/jobs.xml", (req, res) => {
   const rows = db.prepare("SELECT * FROM roles WHERE status='open' AND (ijp_until IS NULL OR ijp_until < date('now'))").all().map(rowRole);
   res.type("application/xml").send(`<?xml version="1.0" encoding="utf-8"?><source><publisher>Healthy Planet School</publisher><publisherurl>${base}</publisherurl>${rows.map((r) => `<job><title>${esc(r.title)}</title><date>${esc(r.created_at)}</date><referencenumber>${r.id}</referencenumber><url>${esc(`${base}/apply/${r.id}`)}</url><company>Healthy Planet School</company><city>${esc(r.campus)}</city><state>Uttar Pradesh</state><country>IN</country><description>${esc(r.description || r.criteria.map((c) => c.text).join(". "))}</description><jobtype>fulltime</jobtype>${r.salary_band ? `<salary>${esc(r.salary_band)}</salary>` : ""}</job>`).join("")}</source>`);
 });
+
+pub.get("/version", (req, res) => res.json({ version: VERSION, features: ["video-clips", "report-v2", "briefing-checklist", "retake", "thinking-time"] }));
 
 // Careers-page form can post straight here
 pub.post("/apply", (req, res) => {

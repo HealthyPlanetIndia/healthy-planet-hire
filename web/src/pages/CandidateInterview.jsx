@@ -2,38 +2,41 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api.js";
 
-// The candidate's interview page. Video-first: camera and microphone are required, Maya asks each question
-// aloud, the candidate answers on camera, each answer is recorded and uploaded (stored encrypted), and the
-// spoken words are transcribed in the browser for the written report. Typing is only a fallback.
+// The candidate's first-round video interview.
+// Briefing and checklist → camera/mic check → Maya asks (natural voice when configured) → 10 s to think →
+// recording with a clear indicator → Done → next question. One labelled re-take. Voice command "repeat".
+// Uploads retry and never trap the candidate. No transcript is shown; the recording is the record.
 
 const BCP = { en: "en-IN", hi: "hi-IN", pa: "pa-IN", bn: "bn-IN", mr: "mr-IN", gu: "gu-IN", ta: "ta-IN", te: "te-IN", kn: "kn-IN", ml: "ml-IN", ur: "ur-IN" };
 const STR = {
-  en: { title: "Video interview", hi: "Hello", intro: "This is a recorded video interview of about 15 minutes. Maya, our interviewer, will ask you questions out loud. Press Answer, speak to the camera as you would in person, then press Done.", need: "This interview needs a camera and microphone. Please open the link on a phone or laptop with a camera and allow access when asked.", cam: "Turn on camera and microphone", camOn: "Camera and microphone are on", start: "Start interview", answer: "Answer", done: "Done, next question", rec: "Recording", listen: "Listening", typeHint: "If speech is not being picked up, you can type your answer here too.", uploading: "Saving your answer...", finished: "Thank you! Your interview is complete. The school team will be in touch soon.", honest: "Please complete this alone, without help from anyone or the internet. We note if you leave the screen or paste text, and the video is seen only by the school's recruiting team and deleted after 90 days.", agree: "I understand", repeat: "Repeat question", privacy: "Write to hr@healthyplanetschool.com to see or delete your data.", retry: "Connection problem. Press Done again to retry.", interactive: "This interview includes a short role play where Maya plays another person and you respond as you would in real life.", speaking: "Maya is speaking...", earlier: "Earlier questions", yourAnswer: "Your last answer, as transcribed", checking: "Checking the transcription...", fromServer: "transcribed", fromPhone: "heard by your phone", wrong: "Not quite what you said? Add a note", noteHint: "Briefly say what you actually meant. The recording is the record; this note goes to the school with it.", noteSend: "Send note", noteSaved: "Note saved. Thank you." },
-  hi: { title: "वीडियो साक्षात्कार", hi: "नमस्ते", intro: "यह लगभग 15 मिनट का रिकॉर्डेड वीडियो साक्षात्कार है। माया आपसे सवाल बोलकर पूछेंगी। जवाब दें दबाएँ, कैमरे की ओर देखकर बोलें, फिर हो गया दबाएँ।", need: "इस साक्षात्कार के लिए कैमरा और माइक्रोफ़ोन चाहिए। कृपया कैमरे वाले फ़ोन या लैपटॉप पर लिंक खोलें और अनुमति दें।", cam: "कैमरा और माइक चालू करें", camOn: "कैमरा और माइक चालू हैं", start: "साक्षात्कार शुरू करें", answer: "जवाब दें", done: "हो गया, अगला सवाल", rec: "रिकॉर्डिंग", listen: "सुन रही हूँ", typeHint: "अगर आवाज़ पकड़ी नहीं जा रही हो तो यहाँ टाइप भी कर सकते हैं।", uploading: "आपका जवाब सहेजा जा रहा है...", finished: "धन्यवाद! आपका साक्षात्कार पूरा हुआ। स्कूल की टीम शीघ्र ही संपर्क करेगी।", honest: "कृपया अकेले, बिना किसी की मदद या इंटरनेट के जवाब दें। स्क्रीन से बाहर जाना या टेक्स्ट पेस्ट करना नोट किया जाता है, और वीडियो केवल स्कूल की भर्ती टीम देखती है और 90 दिनों में हट जाता है।", agree: "मैं समझता/समझती हूँ", repeat: "सवाल दोबारा", privacy: "अपना डेटा देखने या हटाने के लिए hr@healthyplanetschool.com पर लिखें।", retry: "कनेक्शन में समस्या। हो गया दोबारा दबाएँ।", interactive: "इस साक्षात्कार में एक छोटा रोल-प्ले भी होगा, जिसमें माया किसी और की भूमिका निभाएगी।", speaking: "माया बोल रही हैं...", earlier: "पिछले सवाल", yourAnswer: "आपका पिछला जवाब, जैसा लिखा गया", checking: "लिखावट की जाँच हो रही है...", fromServer: "ट्रांसक्राइब किया गया", fromPhone: "आपके फ़ोन ने सुना", wrong: "जो कहा वह ठीक नहीं लिखा? नोट जोड़ें", noteHint: "संक्षेप में बताएँ कि आपने क्या कहा था। रिकॉर्डिंग ही मुख्य रिकॉर्ड है; यह नोट उसके साथ स्कूल को जाता है।", noteSend: "नोट भेजें", noteSaved: "नोट सहेजा गया। धन्यवाद।" },
+  en: {
+    title: "First-round interview", hello: "Hello", ready: "I'm ready", start: "Begin the interview", answerNow: "Answer now", done: "Done, next question", rec: "Recording", think: "Take a moment to think", speakIn: "Recording starts in", repeat: "Repeat question", retake: "Re-record this answer (one allowed)", retaking: "Re-recording answer", uploading: "Saving your answer", tryAgain: "Try again", skipClip: "Continue without the video", saved: "Saved", finished: "Your interview is complete", finishedNote: "Thank you. Your answers have been recorded and the school's recruiting team will review them. You will hear from us about the next step. You can close this page.", resume: "Welcome back. Turn your camera and microphone on again to continue.", resumeBtn: "Turn camera on and continue", need: "This interview needs a camera and microphone. Open the link on a laptop or a phone with a camera, and allow access when asked.", check: "Camera and microphone check", checkDark: "Your picture is dark. Face a window or a lamp, so the light is in front of you.", checkOk: "Picture looks good.", micSay: "Say a few words to test your microphone.", micOk: "Microphone is working.", micLow: "We can barely hear you. Move closer to the microphone or check it is not muted.", emailMe: "Email me this link to open on a laptop", emailed: "Sent. Open the email on your laptop and continue there.", listeningRepeat: "Say “repeat the question” or press the button", pressAnswer: "After the countdown, recording starts on its own. Speak to the camera as you would to a panel.", you: "You", maya: "Maya, interviewer", speaking: "Maya is speaking",
+  },
+  hi: {
+    title: "पहला साक्षात्कार", hello: "नमस्ते", ready: "मैं तैयार हूँ", start: "साक्षात्कार शुरू करें", answerNow: "अभी जवाब दें", done: "हो गया, अगला सवाल", rec: "रिकॉर्डिंग", think: "सोचने के लिए एक पल लें", speakIn: "रिकॉर्डिंग शुरू होगी", repeat: "सवाल दोबारा", retake: "यह जवाब दोबारा रिकॉर्ड करें (एक बार)", retaking: "जवाब दोबारा रिकॉर्ड हो रहा है", uploading: "आपका जवाब सहेजा जा रहा है", tryAgain: "फिर कोशिश करें", skipClip: "वीडियो के बिना आगे बढ़ें", saved: "सहेजा गया", finished: "आपका साक्षात्कार पूरा हुआ", finishedNote: "धन्यवाद। आपके जवाब रिकॉर्ड हो गए हैं और स्कूल की टीम उन्हें देखेगी। अगले कदम के बारे में हम आपसे संपर्क करेंगे। आप यह पेज बंद कर सकते हैं।", resume: "वापसी पर स्वागत है। जारी रखने के लिए कैमरा और माइक फिर चालू करें।", resumeBtn: "कैमरा चालू करें और जारी रखें", need: "इस साक्षात्कार के लिए कैमरा और माइक्रोफ़ोन चाहिए। लैपटॉप या कैमरे वाले फ़ोन पर लिंक खोलें और अनुमति दें।", check: "कैमरा और माइक की जाँच", checkDark: "तस्वीर अँधेरी है। खिड़की या लैंप की ओर मुँह करें ताकि रोशनी सामने से आए।", checkOk: "तस्वीर ठीक है।", micSay: "माइक जाँचने के लिए कुछ शब्द बोलें।", micOk: "माइक काम कर रहा है।", micLow: "आवाज़ बहुत धीमी है। माइक के पास आएँ या देखें कि वह म्यूट तो नहीं।", emailMe: "यह लिंक मुझे ईमेल करें ताकि लैपटॉप पर खोल सकूँ", emailed: "भेज दिया। लैपटॉप पर ईमेल खोलकर वहाँ जारी रखें।", listeningRepeat: "“सवाल दोबारा” कहें या बटन दबाएँ", pressAnswer: "गिनती के बाद रिकॉर्डिंग अपने आप शुरू होगी। कैमरे की ओर देखकर वैसे बोलें जैसे पैनल के सामने बोलते।", you: "आप", maya: "माया, साक्षात्कारकर्ता", speaking: "माया बोल रही हैं",
+  },
+};
+const CHECK = {
+  en: ["I have 20 uninterrupted minutes and will give this my full attention", "I am in a quiet, private, well-lit room, with the light in front of me", "I am using a laptop or desktop, or my phone is on a stable surface at eye level", "I understand: 10 seconds to think before each answer, I can ask Maya to repeat a question, and I may re-record one answer", "I will answer alone, without notes, other people or the internet. I understand the interview is recorded, assessed, and seen only by the school's recruiting team, and that leaving the screen or pasting text is noted"],
+  hi: ["मेरे पास 20 मिनट बिना रुकावट के हैं और मैं पूरा ध्यान दूँगा/दूँगी", "मैं शांत, निजी, अच्छी रोशनी वाले कमरे में हूँ और रोशनी सामने से आ रही है", "मैं लैपटॉप या डेस्कटॉप पर हूँ, या मेरा फ़ोन आँखों की ऊँचाई पर स्थिर रखा है", "मैं समझता/समझती हूँ: हर जवाब से पहले 10 सेकंड सोचने के लिए, माया से सवाल दोहराने को कह सकते हैं, और एक जवाब दोबारा रिकॉर्ड कर सकते हैं", "मैं अकेले, बिना नोट्स, बिना किसी की या इंटरनेट की मदद के जवाब दूँगा/दूँगी। साक्षात्कार रिकॉर्ड और मूल्यांकित होता है, केवल स्कूल की भर्ती टीम देखती है, और स्क्रीन छोड़ना या टेक्स्ट पेस्ट करना नोट किया जाता है"],
 };
 
 export default function CandidateInterview() {
   const { token } = useParams();
   const [info, setInfo] = useState(null); const [err, setErr] = useState(""); const [lang, setLang] = useState("en");
-  const [transcript, setTr] = useState([]); const [ended, setEnded] = useState(false); const [agreed, setAgreed] = useState(false);
-  const [phase, setPhase] = useState("idle"); // idle | asking | answering | uploading
-  const [draft, setDraft] = useState(""); const [seconds, setSeconds] = useState(0);
-  const [camState, setCamState] = useState("off"); const [busy, setBusy] = useState(false);
-  const [last, setLast] = useState(null); // { index, text, source, ready } for the most recent answer
-  const [note, setNote] = useState(""); const [noteOpen, setNoteOpen] = useState(false); const [noteSaved, setNoteSaved] = useState(false);
-  useEffect(() => {
-    if (!last || last.ready) return;
-    let tries = 0; const iv = setInterval(async () => { tries++; try { const r = await api(`/public/interview/${token}/transcript/${last.index}`, { auth: false }); if (r.ready || tries > 12) { clearInterval(iv); setLast((l) => (l && l.index === last.index ? { ...l, ...r, ready: true } : l)); } } catch { if (tries > 12) clearInterval(iv); } }, 2000);
-    return () => clearInterval(iv);
-  }, [last?.index, last?.ready]);
-  const videoRef = useRef(null), streamRef = useRef(null), recRef = useRef(null), chunksRef = useRef([]), srRef = useRef(null), finalRef = useRef(""), timerRef = useRef(null), startedAtRef = useRef(0), phaseRef = useRef("idle");
+  const [transcript, setTr] = useState([]); const [ended, setEnded] = useState(false);
+  const [ticks, setTicks] = useState([false, false, false, false, false]);
+  const [camState, setCamState] = useState("off"); const [light, setLight] = useState(null); const [mic, setMic] = useState(null);
+  const [phase, setPhase] = useState("idle"); // idle | asking | thinking | answering | uploading | failed | retakeOffer
+  const [countdown, setCountdown] = useState(0); const [seconds, setSeconds] = useState(0); const [busy, setBusy] = useState(false); const [emailed, setEmailed] = useState(false);
+  const [retakeUsed, setRetakeUsed] = useState(false); const [isRetake, setIsRetake] = useState(false); const [pendingBlob, setPendingBlob] = useState(null);
+  const videoRef = useRef(null), streamRef = useRef(null), recRef = useRef(null), chunksRef = useRef([]), srRef = useRef(null), finalRef = useRef(""), timerRef = useRef(null), startedAtRef = useRef(0), phaseRef = useRef("idle"), audioRef = useRef(null), spokenForRef = useRef("");
   useEffect(() => { phaseRef.current = phase; }, [phase]);
-  const t = STR[lang] || STR.en;
+  const t = STR[lang] || STR.en, checklist = CHECK[lang] || CHECK.en;
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
-  const textMode = info?.mode === "text" || (info?.allow_text && camState === "denied");
   const signal = (type, detail = "") => api(`/public/interview/${token}/signal`, { method: "POST", body: { type, detail } }).catch(() => {});
 
-  useEffect(() => { api(`/public/interview/${token}`, { auth: false }).then((i) => { setInfo(i); setTr(i.transcript); setLang(i.language); if (i.status === "completed") setEnded(true); }).catch((e) => setErr(e.message)); }, [token]);
+  useEffect(() => { api(`/public/interview/${token}`, { auth: false }).then((i) => { setInfo(i); setTr(i.transcript); setLang(i.language); setRetakeUsed(i.retake_used); if (i.status === "completed") setEnded(true); }).catch((e) => setErr(e.message)); }, [token]);
   useEffect(() => { let id = localStorage.getItem("hph_dev"); if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("hph_dev", id); } api(`/public/interview/${token}/session`, { method: "POST", body: { id } }).catch(() => {}); }, [token]);
 
   const running = info?.status === "in_progress" && !ended;
@@ -44,9 +47,24 @@ export default function CandidateInterview() {
     return () => { document.removeEventListener("visibilitychange", vis); window.removeEventListener("blur", blur); document.removeEventListener("paste", paste); document.removeEventListener("copy", copy); };
   }, [running]);
 
+  // ---------- camera, light and microphone check ----------
   async function startCamera() {
-    try { const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: true }); streamRef.current = st; setCamState("on"); signal("camera_ok"); }
-    catch { setCamState("denied"); signal("camera_denied"); }
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: true });
+      streamRef.current = st; setCamState("on"); signal("camera_ok");
+      setTimeout(checkLight, 1500); startMicMeter(st);
+    } catch { setCamState("denied"); signal("camera_denied"); }
+  }
+  function checkLight() {
+    const v = videoRef.current; if (!v || !v.videoWidth) return setTimeout(checkLight, 800);
+    const cv = document.createElement("canvas"); cv.width = 64; cv.height = 48; const ctx = cv.getContext("2d"); ctx.drawImage(v, 0, 0, 64, 48);
+    const d = ctx.getImageData(0, 0, 64, 48).data; let sum = 0; for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
+    const avg = sum / (d.length / 4); setLight(avg < 55 ? "dark" : "ok"); if (avg < 55) signal("dark", String(Math.round(avg)));
+  }
+  function startMicMeter(st) {
+    try { const ac = new (window.AudioContext || window.webkitAudioContext)(); const src = ac.createMediaStreamSource(st); const an = ac.createAnalyser(); an.fftSize = 512; src.connect(an); const buf = new Uint8Array(an.fftSize); let peak = 0, n = 0;
+      const iv = setInterval(() => { an.getByteTimeDomainData(buf); let s = 0; for (const x of buf) s += (x - 128) ** 2; const rms = Math.sqrt(s / buf.length); peak = Math.max(peak, rms); n++; if (peak > 6) { setMic("ok"); clearInterval(iv); } else if (n > 60) { setMic("low"); signal("audio_low"); clearInterval(iv); } }, 100);
+    } catch { setMic("ok"); }
   }
   useEffect(() => { if (camState === "on" && videoRef.current && streamRef.current && videoRef.current.srcObject !== streamRef.current) videoRef.current.srcObject = streamRef.current; });
   useEffect(() => {
@@ -55,18 +73,44 @@ export default function CandidateInterview() {
     const check = async () => { const v = videoRef.current; if (!v || !v.videoWidth) return; const cv = document.createElement("canvas"); cv.width = 320; cv.height = Math.round(320 * v.videoHeight / v.videoWidth); cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height); try { const f = await det.detect(cv); signal("faces", String(f.length)); } catch {} };
     const iv = setInterval(check, 60000); const t0 = setTimeout(check, 5000); return () => { clearInterval(iv); clearTimeout(t0); };
   }, [running, camState]);
-  useEffect(() => { if (ended) { streamRef.current?.getTracks().forEach((x) => x.stop()); window.speechSynthesis?.cancel(); } }, [ended]);
+  useEffect(() => { if (ended) { streamRef.current?.getTracks().forEach((x) => x.stop()); window.speechSynthesis?.cancel(); audioRef.current?.pause(); } }, [ended]);
 
-  const speak = (text) => new Promise((resolve) => {
-    if (!window.speechSynthesis) return resolve();
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text); u.lang = BCP[lang] || "en-IN"; u.rate = 0.95;
-    const voices = window.speechSynthesis.getVoices(); const v = voices.find((x) => x.lang === u.lang) || voices.find((x) => x.lang.startsWith(lang)); if (v) u.voice = v;
+  // ---------- Maya speaks: natural voice from the server if configured, else the browser ----------
+  const speak = (text) => new Promise(async (resolve) => {
     let done = false; const fin = () => { if (!done) { done = true; resolve(); } };
+    if (info?.tts) {
+      try { const r = await fetch(`/api/public/interview/${token}/speak`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+        if (r.status === 200) { const url = URL.createObjectURL(await r.blob()); const a = new Audio(url); audioRef.current = a; a.onended = fin; a.onerror = fin; await a.play().catch(fin); setTimeout(fin, 8000 + text.length * 90); return; } } catch {}
+    }
+    if (!window.speechSynthesis) return fin();
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = BCP[lang] || "en-IN"; u.rate = 0.92; u.pitch = 1;
+    const voices = window.speechSynthesis.getVoices(); const v = voices.find((x) => x.lang === u.lang && /female|woman|neerja|heera|veena/i.test(x.name)) || voices.find((x) => x.lang === u.lang) || voices.find((x) => x.lang.startsWith(lang)); if (v) u.voice = v;
     u.onend = fin; u.onerror = fin; window.speechSynthesis.speak(u); setTimeout(fin, 8000 + text.length * 90);
   });
   const lastQ = [...transcript].reverse().find((m) => m.role === "assistant")?.content || "";
-  useEffect(() => { if (running && lastQ && !ended && phaseRef.current === "idle") { setPhase("asking"); speak(lastQ).then(() => setPhase((p) => (p === "asking" ? "idle" : p))); } }, [lastQ, running]);
+
+  // Ask → think (10 s, with "repeat" listening) → record
+  useEffect(() => {
+    if (!running || !lastQ || ended || spokenForRef.current === lastQ || camState !== "on") return;
+    if (["retakeOffer", "uploading", "failed", "answering"].includes(phase)) return; // the next question waits until the candidate has decided about a re-take
+    spokenForRef.current = lastQ; askThenThink(lastQ);
+  }, [lastQ, running, camState, phase]);
+  async function askThenThink(q) {
+    setPhase("asking"); await speak(q); if (phaseRef.current !== "asking") return;
+    setPhase("thinking"); listenForRepeat();
+    let n = info?.thinking_seconds || 10; setCountdown(n);
+    const iv = setInterval(() => { n--; setCountdown(n); if (n <= 0) { clearInterval(iv); if (phaseRef.current === "thinking") beginAnswer(); } }, 1000);
+    thinkTimerRef.current = iv;
+  }
+  const thinkTimerRef = useRef(null);
+  function listenForRepeat() {
+    if (!SR) return; try { srRef.current?.stop(); } catch {}
+    const sr = new SR(); sr.lang = BCP[lang] || "en-IN"; sr.interimResults = true; sr.continuous = true; srRef.current = sr;
+    sr.onresult = (e) => { const said = Array.from(e.results).map((r) => r[0].transcript).join(" ").toLowerCase(); if (/repeat|again|dobara|दोबारा|फिर से|dohra/.test(said) && phaseRef.current === "thinking") repeatQuestion(); };
+    sr.onerror = () => {}; try { sr.start(); } catch {}
+  }
+  function repeatQuestion() { clearInterval(thinkTimerRef.current); try { srRef.current?.stop(); } catch {} spokenForRef.current = ""; window.speechSynthesis?.cancel(); audioRef.current?.pause(); askThenThink(lastQ); }
 
   async function start() {
     setBusy(true);
@@ -74,114 +118,141 @@ export default function CandidateInterview() {
     setBusy(false);
   }
 
+  // ---------- answering ----------
   function beginAnswer() {
-    window.speechSynthesis?.cancel(); setPhase("answering"); setDraft(""); setErr(""); finalRef.current = ""; chunksRef.current = []; setSeconds(0); startedAtRef.current = Date.now();
+    clearInterval(thinkTimerRef.current); try { srRef.current?.stop(); } catch {} window.speechSynthesis?.cancel(); audioRef.current?.pause();
+    setPhase("answering"); setErr(""); finalRef.current = ""; chunksRef.current = []; setSeconds(0); startedAtRef.current = Date.now();
     timerRef.current = setInterval(() => setSeconds(Math.round((Date.now() - startedAtRef.current) / 1000)), 500);
     if (streamRef.current && window.MediaRecorder) {
       const mime = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
       try { const rec = new MediaRecorder(streamRef.current, { mimeType: mime || undefined, videoBitsPerSecond: 400000, audioBitsPerSecond: 48000 }); rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data); rec.start(1000); recRef.current = rec; } catch { recRef.current = null; }
     }
-    if (SR && !textMode) {
-      const sr = new SR(); sr.lang = BCP[lang] || "en-IN"; sr.interimResults = true; sr.continuous = true; srRef.current = sr;
-      sr.onresult = (e) => { let interim = ""; for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) finalRef.current = (finalRef.current + " " + r[0].transcript).trim(); else interim += r[0].transcript; } setDraft((finalRef.current + " " + interim).trim()); };
-      sr.onend = () => { if (phaseRef.current === "answering") { try { sr.start(); } catch {} } };
-      sr.onerror = () => {}; try { sr.start(); } catch {}
+    if (SR) { // browser transcript is only a fallback for the server's transcription; the candidate never sees it
+      const sr = new SR(); sr.lang = BCP[lang] || "en-IN"; sr.interimResults = false; sr.continuous = true; srRef.current = sr;
+      sr.onresult = (e) => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) finalRef.current = (finalRef.current + " " + e.results[i][0].transcript).trim(); };
+      sr.onend = () => { if (phaseRef.current === "answering") { try { sr.start(); } catch {} } }; sr.onerror = () => {}; try { sr.start(); } catch {}
     }
   }
-
   async function finishAnswer() {
     clearInterval(timerRef.current); setPhase("uploading");
-    const answerIndex = transcript.filter((m) => m.role === "user").length;
-    const text = (draft || finalRef.current || "").trim();
     try { srRef.current?.stop(); } catch {}
     let blob = null;
     if (recRef.current && recRef.current.state !== "inactive") { await new Promise((res) => { recRef.current.onstop = res; recRef.current.stop(); }); blob = new Blob(chunksRef.current, { type: recRef.current.mimeType || "video/webm" }); }
-    const secs = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
-    try {
-      if (blob && blob.size > 1000) await fetch(`/api/public/interview/${token}/clip/${answerIndex}?seconds=${secs}`, { method: "POST", headers: { "Content-Type": blob.type || "video/webm" }, body: blob });
-      const spoken = text || (blob ? (lang === "hi" ? "(उत्तर वीडियो में रिकॉर्ड किया गया; बोले गए शब्द पकड़े नहीं गए)" : "(answer recorded on video; spoken words were not captured)") : "");
-      if (!spoken) { setPhase("answering"); return; }
-      const r = await api(`/public/interview/${token}/answer`, { method: "POST", body: { answer: spoken } });
-      setDraft(""); if (r.ended) setEnded(true); setPhase("idle"); setTr(r.transcript);
-      setNote(""); setNoteOpen(false); setNoteSaved(false);
-      setLast({ index: answerIndex, text: spoken, source: "phone", ready: false });
-    } catch (e) { setErr(t.retry); setPhase("answering"); }
+    setPendingBlob(blob); await submit(blob, false);
   }
+  async function submit(blob, skipClip) {
+    const answerIndex = transcript.filter((m) => m.role === "user").length;
+    const secs = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+    const text = (finalRef.current || "").trim() || (lang === "hi" ? "(उत्तर वीडियो में रिकॉर्ड किया गया)" : "(answer recorded on video; see the recording)");
+    setPhase("uploading");
+    try {
+      if (blob && blob.size > 1000 && !skipClip) {
+        const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 45000);
+        const up = await fetch(`/api/public/interview/${token}/clip/${answerIndex}?seconds=${secs}`, { method: "POST", headers: { "Content-Type": blob.type || "video/webm" }, body: blob, signal: ctrl.signal });
+        clearTimeout(to); if (!up.ok) throw new Error(`upload ${up.status}`);
+      } else if (skipClip) signal("clip_failed", `answer ${answerIndex + 1}: continued without video after upload failure`);
+      const r = await api(`/public/interview/${token}/answer`, { method: "POST", body: { answer: text } });
+      setTr(r.transcript); setPendingBlob(null); setIsRetake(false);
+      if (r.ended) { setEnded(true); setPhase("idle"); } else setPhase(retakeUsed ? "idle" : "retakeOffer");
+    } catch (e) { setPhase("failed"); setErr(e.name === "AbortError" ? "The upload timed out." : e.message); }
+  }
+  async function retake() {
+    try { const r = await api(`/public/interview/${token}/retake`, { method: "POST", body: {} }); setRetakeUsed(true); setIsRetake(true); setTr(r.transcript); spokenForRef.current = ""; } catch (e) { setErr(e.message); }
+  }
+  // When a re-take offer is on screen and Maya's next question arrives, the next question waits until the offer is dismissed
+  useEffect(() => { if (phase === "retakeOffer") { window.speechSynthesis?.cancel(); audioRef.current?.pause(); } }, [phase]);
+  function proceedAfterOffer() { setPhase("idle"); spokenForRef.current = ""; }
 
   if (err && !info) return <Center><div className="card" style={{ maxWidth: 380 }}><b>Healthy Planet School</b><p>{err}</p></div></Center>;
   if (!info) return <Center><span className="muted">Loading...</span></Center>;
   if (info.status === "expired") return <Center><div className="card" style={{ maxWidth: 380 }}><b>Healthy Planet School</b><p>This interview link has expired. Please reply to the school's message and we will send you a fresh one.</p></div></Center>;
   const answered = transcript.filter((m) => m.role === "user").length;
-  const canStart = agreed && (textMode || camState === "on");
-  const showCamera = !textMode && camState === "on" && !ended;
+  const allTicked = ticks.every(Boolean);
+  const canStart = allTicked && camState === "on" && light !== null && mic !== null;
+  const firstName = info.candidate;
+
+  // ---------- completion ----------
+  if (ended) return <Center><div className="card" style={{ maxWidth: 460, textAlign: "center", padding: 28 }}><div style={{ fontSize: 40, color: "var(--green)" }}>✓</div><div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0" }}>{t.finished}</div><p className="muted" style={{ lineHeight: 1.5 }}>{t.finishedNote}</p></div></Center>;
+
+  // ---------- resume after a dropped connection: camera must come back first ----------
+  if (running && camState !== "on") return <Center><div className="card" style={{ maxWidth: 420 }}><b>Healthy Planet School · {t.title}</b><p>{t.resume}</p>{camState === "denied" && <p style={{ color: "#B0463C" }}>{t.need}</p>}<button className="warm" style={{ width: "100%" }} onClick={() => { signal("resumed"); startCamera(); }}>{t.resumeBtn}</button></div></Center>;
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#0F1512", color: "#fff" }}>
-      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, maxWidth: 960, width: "100%", margin: "0 auto" }}>
         <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--yellow)", color: "#000", fontWeight: 700, display: "grid", placeItems: "center", fontSize: 13 }}>HP</span>
-        <div><div style={{ fontWeight: 700 }}>Healthy Planet School · {t.title}</div><div style={{ fontSize: 12, opacity: .7 }}>{info.role} · {Math.min(answered, info.total)} / {info.total}</div></div>
-        {phase === "answering" && <span style={{ marginLeft: "auto", color: "#E78076", fontWeight: 700, fontSize: 13 }}>● {t.rec} {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>}
+        <div><div style={{ fontWeight: 700 }}>Healthy Planet School · {t.title}</div><div style={{ fontSize: 12, opacity: .7 }}>{info.role}{running ? ` · ${Math.min(answered, info.total)} / ${info.total}` : ""}</div></div>
       </div>
-      <div style={{ height: 4, background: "#2A332E" }}><div style={{ height: 4, width: `${Math.min(100, (answered / info.total) * 100)}%`, background: "var(--yellow)", transition: "width .3s" }} /></div>
+      {running && <div style={{ height: 4, background: "#2A332E" }}><div style={{ height: 4, width: `${Math.min(100, (answered / info.total) * 100)}%`, background: "var(--yellow)", transition: "width .3s" }} /></div>}
 
-      {showCamera && (
-        <div style={{ position: "relative", background: "#000", maxWidth: 720, width: "100%", margin: "0 auto" }}>
-          <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", maxHeight: "46vh", objectFit: "cover", transform: "scaleX(-1)", display: "block" }} />
-          <div style={{ position: "absolute", left: 12, bottom: 12, display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,.55)", borderRadius: 999, padding: "6px 12px", fontSize: 13 }}>
-            <span style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--green)", display: "grid", placeItems: "center", fontWeight: 700 }}>M</span>
-            <span>{phase === "asking" ? t.speaking : phase === "answering" ? (SR ? t.listen : t.rec) : "Maya"}</span>
+      {/* Briefing and checklist */}
+      {!running && (
+        <div style={{ padding: 16, maxWidth: 720, width: "100%", margin: "0 auto" }}>
+          <div className="card" style={{ background: "#fff", color: "var(--ink)" }}>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{t.hello}, {firstName}</div>
+            <p style={{ lineHeight: 1.55, marginTop: 6 }}>{lang === "hi" ? `यह ${info.role} पद के लिए चयन प्रक्रिया का पहला दौर है। माया, हमारी साक्षात्कारकर्ता, ${info.total} सवाल पूछेंगी, साथ में कुछ फ़ॉलो-अप${info.interactive ? " और एक छोटा रोल-प्ले" : ""}। लगभग 15 से 20 मिनट। आपके जवाबों को इस भूमिका की ज़रूरतों के अनुसार परखा जाता है, और इसी से तय होता है कि स्कूल में पैनल दौर के लिए किसे बुलाया जाए।` : `This is the first round of the selection process for ${info.role}. Maya, our interviewer, will ask ${info.total} questions with some follow-ups${info.interactive ? " and a short role play in which she plays another person" : ""}. It takes 15 to 20 minutes. Your answers are assessed against what this role needs, and the result decides who is invited to the panel rounds at the school. Specific examples from your own classroom count for more than general statements, and nobody expects polish.`}</p>
+            <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>{lang === "hi" ? "यह कैसे चलेगा: माया हर सवाल बोलकर पूछेंगी। आपके पास सोचने के लिए 10 सेकंड होंगे, फिर रिकॉर्डिंग अपने आप शुरू होगी। कैमरे की ओर देखकर बोलें, फिर 'हो गया' दबाएँ। सवाल दोहराने के लिए 'सवाल दोबारा' कहें या बटन दबाएँ। पूरे साक्षात्कार में एक जवाब दोबारा रिकॉर्ड किया जा सकता है; दोनों रिकॉर्डिंग रखी जाती हैं।" : "How it works: Maya asks each question aloud. You then have 10 seconds to think, after which recording starts on its own. Speak to the camera, then press Done. To hear a question again, say “repeat the question” or press the button. Once in the interview you may re-record one answer; both recordings are kept and the second is marked as a re-take."}</div>
+            {Object.keys(info.languages || {}).length > 1 && <div className="row" style={{ margin: "12px 0 4px", gap: 6 }}>{Object.entries(info.languages).map(([k, l]) => <button key={k} className={`small ${lang === k ? "primary" : ""}`} onClick={() => setLang(k)}>{l}</button>)}</div>}
+
+            <div style={{ fontWeight: 700, margin: "14px 0 6px" }}>{lang === "hi" ? "शुरू करने से पहले" : "Before you begin"}</div>
+            {checklist.map((c, i) => <label key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, lineHeight: 1.45, marginBottom: 8 }}><input type="checkbox" style={{ width: "auto", marginTop: 4 }} checked={ticks[i]} onChange={(e) => setTicks(ticks.map((x, j) => (j === i ? e.target.checked : x)))} /><span>{c}</span></label>)}
+            {info.candidate_email && !emailed && <button className="link" style={{ fontSize: 13, margin: "4px 0 10px" }} onClick={async () => { try { await api(`/public/interview/${token}/email-link`, { method: "POST", body: {}, auth: false }); setEmailed(true); } catch (e) { setErr(e.message); } }}>{t.emailMe}</button>}
+            {emailed && <div style={{ fontSize: 13, color: "var(--green)", margin: "4px 0 10px" }}>{t.emailed}</div>}
+
+            <div style={{ fontWeight: 700, margin: "10px 0 6px" }}>{t.check}</div>
+            {camState !== "on" && <div><button className="warm" onClick={startCamera}>{lang === "hi" ? "कैमरा और माइक चालू करें" : "Turn on camera and microphone"}</button>{camState === "denied" && <div style={{ color: "#B0463C", fontSize: 13, marginTop: 6 }}>{t.need}</div>}</div>}
+            {camState === "on" && <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12, alignItems: "center" }}>
+              <video ref={videoRef} autoPlay muted playsInline style={{ width: 180, height: 135, objectFit: "cover", borderRadius: 10, transform: "scaleX(-1)", background: "#000" }} />
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+                <div style={{ color: light === "dark" ? "#B0463C" : light === "ok" ? "var(--green)" : "var(--mute)" }}>{light === null ? "..." : light === "dark" ? t.checkDark : t.checkOk} {light === "dark" && <button className="link" style={{ fontSize: 12 }} onClick={checkLight}>{lang === "hi" ? "फिर जाँचें" : "check again"}</button>}</div>
+                <div style={{ color: mic === "low" ? "#B0463C" : mic === "ok" ? "var(--green)" : "var(--mute)" }}>{mic === null ? t.micSay : mic === "ok" ? t.micOk : t.micLow} {mic === "low" && <button className="link" style={{ fontSize: 12 }} onClick={() => { setMic(null); startMicMeter(streamRef.current); }}>{lang === "hi" ? "फिर जाँचें" : "test again"}</button>}</div>
+              </div>
+            </div>}
+
+            <button className="primary" disabled={busy || !canStart} onClick={start} style={{ width: "100%", marginTop: 16, padding: 12, fontSize: 15 }}>{busy ? "..." : t.start}</button>
+            {!allTicked && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{lang === "hi" ? "शुरू करने के लिए ऊपर हर बिंदु पर सही का निशान लगाएँ।" : "Tick every item above to begin."}</div>}
+            <div className="muted" style={{ fontSize: 11, marginTop: 10 }}>{lang === "hi" ? "वीडियो एन्क्रिप्टेड रखा जाता है, केवल स्कूल की भर्ती टीम देखती है, और 90 दिनों में हट जाता है। अपना डेटा देखने या हटाने के लिए hr@healthyplanetschool.com पर लिखें।" : "Recordings are stored encrypted, seen only by the school's recruiting team, and deleted after 90 days. Write to hr@healthyplanetschool.com to see or delete your data."}</div>
           </div>
         </div>
       )}
 
-      <div style={{ flex: 1, padding: 16, maxWidth: 720, width: "100%", margin: "0 auto" }}>
-        {transcript.length === 0 && !ended && (
-          <div className="card" style={{ background: "#fff", color: "var(--ink)" }}>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{t.hi}, {info.candidate}</div>
-            <p className="muted" style={{ lineHeight: 1.5 }}>{t.intro}</p>
-            {info.interactive && <p className="muted" style={{ fontSize: 13 }}>{t.interactive}</p>}
-            <div className="row" style={{ marginBottom: 12, gap: 6 }}>{Object.entries(info.languages || { en: "English", hi: "हिन्दी" }).map(([k, l]) => <button key={k} className={`small ${lang === k ? "primary" : ""}`} onClick={() => setLang(k)}>{l}</button>)}</div>
-            {!textMode && <div style={{ background: "var(--soft)", borderRadius: 10, padding: 12, fontSize: 13, marginBottom: 12 }}>
-              {camState === "denied" ? <span style={{ color: "#B0463C" }}>{t.need}</span> : t.honest}
-              <div className="row" style={{ marginTop: 10 }}>
-                {camState !== "on" && <button className="warm" onClick={startCamera}>{t.cam}</button>}
-                {camState === "on" && <span style={{ color: "var(--green)", fontWeight: 500 }}>● {t.camOn}</span>}
+      {/* The interview: two boxes */}
+      {running && (
+        <div style={{ flex: 1, padding: 12, maxWidth: 960, width: "100%", margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 12 }} className="interview-grid">
+          <style>{`@media (max-width: 700px) { .interview-grid { grid-template-columns: 1fr !important; } }`}</style>
+          <div style={{ position: "relative", background: "#000", borderRadius: 14, overflow: "hidden", minHeight: 240 }}>
+            <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", minHeight: 240, maxHeight: "60vh", objectFit: "cover", transform: "scaleX(-1)", display: "block" }} />
+            <div style={{ position: "absolute", left: 12, bottom: 12, background: "rgba(0,0,0,.6)", borderRadius: 999, padding: "6px 12px", fontSize: 13, fontWeight: 500 }}>{t.you}: {firstName}</div>
+            {phase === "answering" && <div style={{ position: "absolute", right: 12, top: 12, background: "#C0392B", borderRadius: 999, padding: "6px 12px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: "#fff", animation: "blink 1s infinite" }} />{t.rec} {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</div>}
+            <style>{`@keyframes blink { 50% { opacity: .2 } } @keyframes pulse { 0%,100% { transform: scale(1); opacity: .6 } 50% { transform: scale(1.35); opacity: 0 } }`}</style>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ background: "#1C2620", borderRadius: 14, padding: 14, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ position: "relative", width: 56, height: 56 }}>
+                {phase === "asking" && <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "var(--green)", animation: "pulse 1.4s infinite" }} />}
+                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "var(--green)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 20 }}>M</span>
               </div>
-            </div>}
-            <label style={{ fontSize: 13, display: "block", marginBottom: 12 }}><input type="checkbox" style={{ width: "auto" }} checked={agreed} onChange={(e) => setAgreed(e.target.checked)} /> {t.agree}</label>
-            <button className="primary" disabled={busy || !canStart} onClick={start} style={{ width: "100%" }}>{busy ? "..." : t.start}</button>
-            <div className="muted" style={{ fontSize: 11, marginTop: 10 }}>{t.privacy}</div>
+              <div><div style={{ fontWeight: 700 }}>{t.maya}</div><div style={{ fontSize: 12, opacity: .75 }}>{phase === "asking" ? t.speaking : phase === "thinking" ? t.think : phase === "answering" ? t.rec : ""}</div></div>
+            </div>
+            <div className="card" style={{ background: "#fff", color: "var(--ink)", flex: 1 }}>
+              {phase !== "retakeOffer" && <div style={{ fontSize: 16, lineHeight: 1.45 }}>{lastQ}</div>}
+              {(phase === "asking" || phase === "thinking") && <div style={{ marginTop: 12 }}>
+                <div className="muted" style={{ fontSize: 12 }}>{t.pressAnswer}</div>
+                {phase === "thinking" && <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}><div style={{ width: 52, height: 52, borderRadius: "50%", border: "4px solid var(--yellow)", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 20 }}>{countdown}</div><div style={{ fontSize: 13 }}>{t.speakIn} {countdown}s<div className="muted" style={{ fontSize: 12 }}>{t.listeningRepeat}</div></div></div>}
+                <div className="row" style={{ marginTop: 10 }}><button className="primary" disabled={phase !== "thinking"} onClick={beginAnswer}>{t.answerNow}</button><button disabled={phase !== "thinking"} onClick={repeatQuestion}>{t.repeat}</button></div>
+              </div>}
+              {phase === "answering" && <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, color: "#C0392B", fontWeight: 700 }}>● {t.rec}{isRetake ? ` · ${t.retaking}` : ""}</div>
+                <button className="warm" onClick={finishAnswer} style={{ width: "100%", padding: 12, fontSize: 15, marginTop: 10 }} disabled={seconds < 3}>{t.done}</button>
+              </div>}
+              {phase === "uploading" && <div className="muted" style={{ marginTop: 12 }}>{t.uploading}...</div>}
+              {phase === "failed" && <div style={{ marginTop: 12 }}><div style={{ color: "#B0463C", fontSize: 13 }}>{err}</div><div className="row" style={{ marginTop: 8 }}><button className="primary" onClick={() => submit(pendingBlob, false)}>{t.tryAgain}</button><button onClick={() => submit(pendingBlob, true)}>{t.skipClip}</button></div></div>}
+              {phase === "retakeOffer" && <div style={{ marginTop: 12 }}><div style={{ color: "var(--green)", fontSize: 13, fontWeight: 500 }}>✓ {t.saved}</div><div className="row" style={{ marginTop: 8 }}><button className="primary" onClick={proceedAfterOffer}>{lang === "hi" ? "अगला सवाल" : "Next question"}</button>{!retakeUsed && <button onClick={retake}>{t.retake}</button>}</div></div>}
+              {err && phase !== "failed" && <div style={{ color: "#B0463C", fontSize: 13, marginTop: 8 }}>{err}</div>}
+            </div>
           </div>
-        )}
-
-        {running && lastQ && (
-          <div className="card" style={{ background: "#fff", color: "var(--ink)" }}>
-            <div className="muted" style={{ fontSize: 12 }}>Maya</div>
-            <div style={{ fontSize: 17, lineHeight: 1.45, margin: "4px 0 12px" }}>{lastQ}</div>
-            {(phase === "idle" || phase === "asking") && <div className="row"><button className="primary" onClick={beginAnswer} style={{ flex: 1, padding: 12, fontSize: 15 }}>{t.answer}</button>{phase === "idle" && <button onClick={() => { setPhase("asking"); speak(lastQ).then(() => setPhase((p) => (p === "asking" ? "idle" : p))); }}>{t.repeat}</button>}</div>}
-            {phase === "answering" && <>
-              {SR && !textMode ? <div style={{ minHeight: 60, fontSize: 14, color: draft ? "var(--ink)" : "var(--mute)", background: "var(--soft)", borderRadius: 8, padding: 10 }}>{draft || `${t.listen}...`}</div>
-                : <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t.typeHint} style={{ minHeight: 90 }} />}
-              {SR && !textMode && <details style={{ fontSize: 12, marginTop: 6 }}><summary className="muted">{t.typeHint}</summary><textarea value={draft} onChange={(e) => setDraft(e.target.value)} style={{ minHeight: 70, marginTop: 6 }} /></details>}
-              <button className="warm" onClick={finishAnswer} style={{ width: "100%", padding: 12, fontSize: 15, marginTop: 10 }} disabled={seconds < 2 && !draft}>{t.done}</button>
-            </>}
-            {phase === "uploading" && <div className="muted">{t.uploading}</div>}
-            {err && <div style={{ color: "#B0463C", fontSize: 13, marginTop: 8 }}>{err}</div>}
-          </div>
-        )}
-
-        {last && (
-          <div className="card" style={{ background: "#fff", color: "var(--ink)", marginTop: 12 }}>
-            <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 13 }}>{t.yourAnswer}</b><span className="muted" style={{ fontSize: 11 }}>{!last.ready ? t.checking : last.source === "server" ? `✓ ${t.fromServer}${last.confidence != null ? ` · ${Math.round(last.confidence * 100)}%` : ""}` : t.fromPhone}</span></div>
-            <div style={{ fontSize: 14, lineHeight: 1.45, marginTop: 6, opacity: last.ready ? 1 : .7 }}>{last.text}</div>
-            {last.ready && !noteSaved && !noteOpen && <button className="link" style={{ fontSize: 12, marginTop: 8 }} onClick={() => setNoteOpen(true)}>{t.wrong}</button>}
-            {noteOpen && !noteSaved && <div style={{ marginTop: 8 }}><div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>{t.noteHint}</div><textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 600))} style={{ minHeight: 60 }} /><button className="small" disabled={!note.trim()} style={{ marginTop: 6 }} onClick={async () => { try { await api(`/public/interview/${token}/transcript/${last.index}/note`, { method: "POST", body: { note }, auth: false }); setNoteSaved(true); } catch (e) { setErr(e.message); } }}>{t.noteSend}</button></div>}
-            {noteSaved && <div style={{ fontSize: 12, color: "var(--green)", marginTop: 6 }}>{t.noteSaved}</div>}
-          </div>
-        )}
-        {ended && <div className="card" style={{ background: "#fff", color: "var(--ink)", borderColor: "var(--green)", marginTop: 12 }}>{t.finished}</div>}
-        {transcript.length > 2 && <details style={{ marginTop: 12, fontSize: 13, opacity: .8 }}><summary>{t.earlier}</summary>{transcript.slice(0, -1).map((m, i) => <p key={i} style={{ margin: "6px 0" }}><b>{m.role === "assistant" ? "Maya" : info.candidate}:</b> {m.content}</p>)}</details>}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

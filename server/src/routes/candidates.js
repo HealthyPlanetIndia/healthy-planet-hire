@@ -180,8 +180,20 @@ candidates.get("/:id/interviews/:ivId/clips", (req, res) => {
   const questions = iv.transcript.filter((m) => m.role === "assistant").map((m) => m.content);
   audit(req, `opened video answers of candidate ${c.id}`); logEvent(c.id, "clips_viewed", req.user.name);
   const answers = iv.transcript.filter((m) => m.role === "user");
-  res.json({ transcribe: transcribeEnabled(), clips: iv.clips.map((k) => ({ index: k.index, seconds: k.seconds, question: questions[k.index] || "", answer: answers[k.index]?.content || "", browser_text: answers[k.index]?.meta?.browser_text || null, candidate_note: answers[k.index]?.meta?.candidate_note || null, confidence: k.confidence ?? null, languages: k.languages || null, url: `${publicUrl()}/api/public/clip/${signClip(iv.id, k.index)}` })) });
+  res.json({ transcribe: transcribeEnabled(), retakes: iv.retakes, clips: iv.clips.map((k) => ({ index: k.index, superseded: !!k.superseded, retake: iv.retakes.some((r) => r.index === k.index), seconds: k.seconds, question: questions[k.index % 1000] || "", answer: k.superseded ? (iv.retakes.find((r) => r.index === k.index - 1000)?.previous || "") : answers[k.index]?.content || "", browser_text: answers[k.index]?.meta?.browser_text || null, candidate_note: answers[k.index]?.meta?.candidate_note || null, confidence: k.confidence ?? null, languages: k.languages || null, url: `${publicUrl()}/api/public/clip/${signClip(iv.id, k.index)}` })) });
 });
+// Recruiter watched the clips and disagrees with a transcript or verdict: add a note and rewrite the report with it
+candidates.post("/:id/interviews/:ivId/rereport", requireStaff, async (req, res, next) => {
+  try {
+    const c = getC(req.params.id), iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=? AND candidate_id=?").get(req.params.ivId, c.id)); if (!iv) return res.status(404).json({ error: "Not found" });
+    let transcript = iv.transcript;
+    if (req.body.note) { transcript = [...transcript, { role: "user", content: `(Recruiter ${req.user.name} watched the recording and notes: ${req.body.note})`, meta: { recruiter_note: true } }]; logEvent(c.id, "recruiter_note", req.body.note.slice(0, 80)); }
+    const rep = await interviewReport(getR(c.role_id), c, transcript, { confidence: Object.fromEntries(iv.clips.map((k) => [k.index, k.confidence])) });
+    db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); audit(req, `report rewritten for ${c.id}`);
+    res.json({ ok: true, report: rep });
+  } catch (e) { next(e); }
+});
+
 // Re-run server transcription on every clip and rewrite the report from the improved text
 candidates.post("/:id/interviews/:ivId/retranscribe", requireStaff, async (req, res, next) => {
   try {
@@ -189,7 +201,7 @@ candidates.post("/:id/interviews/:ivId/retranscribe", requireStaff, async (req, 
     const c = getC(req.params.id), iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=? AND candidate_id=?").get(req.params.ivId, c.id)); if (!iv) return res.status(404).json({ error: "Not found" });
     for (const k of iv.clips) await transcribeClip(iv.id, k.index);
     const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id));
-    if (fresh.status === "completed") { const rep = await interviewReport(getR(c.role_id), c, fresh.transcript.map(({ role, content }) => ({ role, content }))); db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); }
+    if (fresh.status === "completed") { const rep = await interviewReport(getR(c.role_id), c, fresh.transcript, { confidence: Object.fromEntries(fresh.clips.map((k) => [k.index, k.confidence])) }); db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); }
     logEvent(c.id, "retranscribed", `${iv.clips.length} clips`); audit(req, `retranscribed interview ${iv.id}`);
     res.json({ ok: true, clips: iv.clips.length });
   } catch (e) { next(e); }

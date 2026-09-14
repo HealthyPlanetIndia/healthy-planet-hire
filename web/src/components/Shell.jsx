@@ -13,7 +13,7 @@ export default function Shell() {
   return (
     <ToastCtx.Provider value={say}>
       <header className="top">
-        <div className="row"><span className="logo">HP</span><div><div style={{ fontWeight: 700, fontSize: 17, lineHeight: 1.1 }}>Healthy Planet Hire</div><div style={{ fontSize: 12, opacity: .85 }}>Recruiting that doesn't depend on heroics</div></div></div>
+        <div className="row"><span className="logo">HP</span><div><div style={{ fontWeight: 700, fontSize: 17, lineHeight: 1.1 }}>Healthy Planet Hire</div><div style={{ fontSize: 12, opacity: .85 }}>Recruiting that doesn't depend on heroics · v{__APP_VERSION__}</div></div></div>
         <nav>
           {!isManager() && <NavLink to="/" end>{t("Home")}</NavLink>}
           <NavLink to="/pipeline">{t("Pipeline")}</NavLink>
