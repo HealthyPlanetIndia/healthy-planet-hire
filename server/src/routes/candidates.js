@@ -187,9 +187,13 @@ candidates.post("/:id/interviews/:ivId/rereport", requireStaff, async (req, res,
   try {
     const c = getC(req.params.id), iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=? AND candidate_id=?").get(req.params.ivId, c.id)); if (!iv) return res.status(404).json({ error: "Not found" });
     let transcript = iv.transcript;
+    if (iv.status !== "completed") return res.status(400).json({ error: "The interview is not complete yet" });
     if (req.body.note) { transcript = [...transcript, { role: "user", content: `(Recruiter ${req.user.name} watched the recording and notes: ${req.body.note})`, meta: { recruiter_note: true } }]; logEvent(c.id, "recruiter_note", req.body.note.slice(0, 80)); }
+    if (!iv.report) { try { const { transcribeAllPending } = await import("../services/transcribe.js"); await transcribeAllPending(iv.id); transcript = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)).transcript; } catch {} }
     const rep = await interviewReport(getR(c.role_id), c, transcript, { confidence: Object.fromEntries(iv.clips.map((k) => [k.index, k.confidence])) });
     db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); audit(req, `report rewritten for ${c.id}`);
+    if (!iv.integrity) { const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)); db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), null)), iv.id); }
+    if (c.stage === "AI interview") db.prepare("UPDATE candidates SET stage='Screening call', stage_at=datetime('now') WHERE id=?").run(c.id);
     res.json({ ok: true, report: rep });
   } catch (e) { next(e); }
 });

@@ -59,7 +59,7 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
       db.prepare("UPDATE interviews SET status='completed', completed_at=datetime('now') WHERE id=?").run(x.i.id);
       logEvent(x.c.id, "interview_completed", "");
       // Generate the report in the background so the candidate isn't kept waiting
-      finishInterview(x, transcript).catch((e) => logEvent(x.c.id, "interview_report_failed", e.message));
+      finishInterview(x, transcript).catch((e) => { logEvent(x.c.id, "interview_report_failed", e.message); db.prepare("UPDATE candidates SET needs_human=1 WHERE id=?").run(x.c.id); });
     }
     res.json({ transcript, ended: t.ended });
   } catch (e) { next(e); }
@@ -75,8 +75,8 @@ async function finishInterview(x, transcript) {
   let ai = null; try { ai = await analyseAnswers(x.r, x.c, transcript); } catch {}
   const integrity = combine(ruleBasedFlags({ ...fresh, transcript }), ai);
   db.prepare("UPDATE interviews SET report=?, integrity=? WHERE id=?").run(JSON.stringify(rep), JSON.stringify(integrity), x.i.id);
-  db.prepare("UPDATE candidates SET stage='Shortlist', stage_at=datetime('now') WHERE id=? AND stage='AI interview'").run(x.c.id);
-  logEvent(x.c.id, "interview_report", `score ${rep.overall}: ${rep.recommendation}`);
+  db.prepare("UPDATE candidates SET stage='Screening call', stage_at=datetime('now') WHERE id=? AND stage='AI interview'").run(x.c.id);
+  logEvent(x.c.id, "interview_report", `${rep.band || rep.overall}: ${rep.recommendation}`);
   if (integrity.risk !== "clear" && integrity.risk !== "low") logEvent(x.c.id, "integrity_alert", `${integrity.risk} risk: ${integrity.reasons.map((r) => r.text).join("; ")}`);
   await fire("interview_report", x.c.id, { score: rep.overall, risk: integrity.risk });
 }

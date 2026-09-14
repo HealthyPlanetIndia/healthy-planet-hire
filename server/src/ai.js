@@ -5,7 +5,8 @@ let client = null;
 export const aiEnabled = () => !!process.env.ANTHROPIC_API_KEY;
 function c() { if (!aiEnabled()) throw new Error("AI is not configured: set ANTHROPIC_API_KEY in server/.env"); return (client ||= new Anthropic()); }
 const text = (r) => r.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
-const parse = (t) => JSON.parse(t.replace(/```json|```/g, "").trim());
+// Tolerant JSON extraction: strips fences and any prose before the first { or after the last }
+const parse = (t) => { const c = t.replace(/```json|```/g, ""); const a = c.indexOf("{"), b = c.lastIndexOf("}"); if (a < 0 || b < a) throw new Error("The assessment was not valid JSON"); return JSON.parse(c.slice(a, b + 1)); };
 
 const SCHOOL = "Healthy Planet School, a K-12 school in Noida, India, which believes environments and relationships teach as much as curriculum.";
 
@@ -86,7 +87,8 @@ Scoring: overall reflects only the competencies that were assessed, with each as
   const comps = [...new Set(qs.map((q) => q.assesses))];
   const untested = role.criteria.map((k) => k.text).filter((t) => !comps.some((cName) => t.toLowerCase().includes(cName.toLowerCase().split(" ")[0])));
   const user = `Scripted questions and what each assesses:\n${qs.map((q, i) => `${i + 1}. [${q.assesses}] ${q.text}`).join("\n")}\n\nCompetencies assessed by this interview: ${comps.join("; ")}\nRole criteria NOT targeted by any question (report as not assessed): ${untested.join("; ") || "none"}\n${role.interview_mode === "interactive" && role.scenario ? `Role play scenario: ${role.scenario}\n` : ""}\nTranscript:\n${lines.join("\n")}`;
-  const r = await c().messages.create({ model: MODEL, max_tokens: 1800, system, messages: [{ role: "user", content: user }] });
+  const r = await c().messages.create({ model: MODEL, max_tokens: 6000, system, messages: [{ role: "user", content: user }] });
+  if (r.stop_reason === "max_tokens") throw new Error("Assessment was cut off; interview too long for one pass");
   return { ...parse(text(r)), at: new Date().toISOString(), version: 2 };
 }
 
