@@ -134,7 +134,7 @@ Agreed after the school's own test of the interview:
   panel should verify. Spoken English is never scored from the transcript.
 - Transcription confidence is shown per answer; unreliable answers are marked, not marked down. A
   recruiter who watches the recording can add a note and rewrite the report.
-- 10 seconds of thinking time, then recording starts; "repeat the question" works by voice; one
+- 3 seconds after the question, recording starts; "repeat the question" works by voice; one
   re-take per interview, with both recordings kept and the second labelled.
 - Uploads retry, time out visibly, and never trap the candidate; a dropped connection resumes with the
   camera re-requested; a clear completion screen.

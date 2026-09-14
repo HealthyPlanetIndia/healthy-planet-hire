@@ -280,7 +280,7 @@ test("interview redesign: labelled questions, per-role languages, one re-take, f
   const c = (await req("/candidates", { method: "POST", body: { name: "Retake Person", role_id: role.id } })).data;
   const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
   const page = (await req(`/public/interview/${iv.token}`, { auth: false })).data;
-  assert.deepEqual(Object.keys(page.languages), ["en", "hi"]); assert.equal(page.thinking_seconds, 10); assert.equal(page.retake_used, false);
+  assert.deepEqual(Object.keys(page.languages), ["en", "hi"]); assert.equal(page.thinking_seconds, 3); assert.equal(page.retake_used, false);
   // no AI in tests: simulate a transcript directly through the retake path by seeding an answer
   const nothing = await req(`/public/interview/${iv.token}/retake`, { method: "POST", body: {}, auth: false }); assert.equal(nothing.status, 400);
   const fake = Buffer.alloc(3000, 1);
