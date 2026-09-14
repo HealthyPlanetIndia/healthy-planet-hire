@@ -82,11 +82,12 @@ async function finishInterview(x, transcript) {
 }
 
 // Recorded video answer for question `index` (raw webm/mp4 body). Stored encrypted; transcript text comes separately via /answer.
-pub.post("/interview/:token/clip/:index", express.raw({ type: ["video/*", "application/octet-stream"], limit: MAX_CLIP_BYTES }), (req, res) => {
+pub.post("/interview/:token/clip/:index", express.raw({ type: () => true, limit: MAX_CLIP_BYTES }), (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).json({ error: "Invalid link" });
   if (x.i.status === "completed" && Date.now() - new Date(x.i.completed_at + "Z").getTime() > 600000) return res.status(400).json({ error: "Interview closed" });
-  if (!req.body?.length || req.body.length < 1000) return res.status(400).json({ error: "Empty recording" });
-  const clips = saveClip(x.i.token, +req.params.index, req.body, { seconds: +req.query.seconds || null, mime: req.headers["content-type"] });
+  if (!Buffer.isBuffer(req.body) || req.body.length < 1000) { logEvent(x.c.id, "clip_rejected", `answer ${+req.params.index + 1}: ${Buffer.isBuffer(req.body) ? req.body.length + " bytes" : "no body"}, type ${req.headers["content-type"]}`); return res.status(400).json({ error: "Empty recording" }); }
+  const mime = String(req.headers["content-type"] || "video/webm").split(";")[0].trim();
+  const clips = saveClip(x.i.token, +req.params.index, req.body, { seconds: +req.query.seconds || null, mime: /^video\//.test(mime) ? mime : "video/webm" });
   res.json({ ok: true, clips: clips.length });
   // Transcribe in the background; the browser's own transcript is used until this lands
   if (transcribeEnabled()) transcribeClip(x.i.id, +req.params.index).catch((e) => logEvent(x.c.id, "transcribe_failed", `clip ${req.params.index}: ${e.message}`));

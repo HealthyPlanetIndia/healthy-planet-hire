@@ -287,3 +287,13 @@ test("interview redesign: labelled questions, per-role languages, one re-take, f
   await fetch(`${BASE}/public/interview/${iv.token}/clip/0?seconds=9`, { method: "POST", headers: { "Content-Type": "video/webm" }, body: fake });
   const before = (await req(`/candidates/${c.id}`)).data.interviews[0]; assert.equal(before.clips[0].index, 0);
 });
+
+test("clip upload accepts the content types real browsers send", async () => {
+  const c = (await req("/candidates", { method: "POST", body: { name: "Chrome Person", role_id: 1 } })).data;
+  const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
+  for (const [i, ct] of ["video/webm;codecs=vp8,opus", "video/mp4", "video/x-matroska;codecs=avc1,opus", "application/octet-stream"].entries()) {
+    const r = await fetch(`${BASE}/public/interview/${iv.token}/clip/${i}`, { method: "POST", headers: { "Content-Type": ct }, body: Buffer.alloc(4000, i + 1) });
+    assert.equal(r.status, 200, ct);
+  }
+  assert.equal((await req(`/candidates/${c.id}`)).data.interviews[0].clips.length, 4);
+});

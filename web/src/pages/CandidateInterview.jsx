@@ -148,7 +148,8 @@ export default function CandidateInterview() {
     try {
       if (blob && blob.size > 1000 && !skipClip) {
         const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 45000);
-        const up = await fetch(`/api/public/interview/${token}/clip/${answerIndex}?seconds=${secs}`, { method: "POST", headers: { "Content-Type": blob.type || "video/webm" }, body: blob, signal: ctrl.signal });
+        const plainType = (blob.type || "video/webm").split(";")[0]; // codecs suffix confused the server before
+        const up = await fetch(`/api/public/interview/${token}/clip/${answerIndex}?seconds=${secs}`, { method: "POST", headers: { "Content-Type": plainType }, body: blob, signal: ctrl.signal });
         clearTimeout(to); if (!up.ok) throw new Error(`upload ${up.status}`);
       } else if (skipClip) signal("clip_failed", `answer ${answerIndex + 1}: continued without video after upload failure`);
       const r = await api(`/public/interview/${token}/answer`, { method: "POST", body: { answer: text } });
