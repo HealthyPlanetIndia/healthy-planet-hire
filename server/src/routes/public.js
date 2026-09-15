@@ -9,7 +9,7 @@ import { getTemplates, fill, deliver } from "../services/messaging.js";
 import { transcriptText } from "../services/video.js";
 import { interviewTurn, interviewReport, analyseAnswers, aiEnabled, gradeWriting } from "../ai.js";
 import { fire } from "../services/rules.js";
-import { LANGUAGES } from "../db.js";
+import { LANGUAGES, canonPhone } from "../db.js";
 import { ruleBasedFlags, combine } from "../services/integrity.js";
 
 export const pub = Router();
@@ -302,7 +302,7 @@ pub.post("/apply", (req, res) => {
   const { role_id, name, phone, email, resume_text, location = "", current_employer = "", expected_salary = "", notice_period = "", referrer = "", internal = false } = req.body;
   if (!name || !role_id) return res.status(400).json({ error: "Name and role are required" });
   const source = internal ? "Internal (IJP)" : referrer ? "Referral" : "Careers page";
-  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, booking_token, location, current_employer, expected_salary, notice_period, referrer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(role_id, name, phone || "", email || "", source, resume_text || "", Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer);
+  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, booking_token, location, current_employer, expected_salary, notice_period, referrer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(role_id, name, canonPhone(phone), (email || "").trim().toLowerCase(), source, resume_text || "", Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer);
   logEvent(r.lastInsertRowid, "created", "via careers page");
   res.status(201).json({ ok: true });
 });

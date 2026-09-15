@@ -17,7 +17,7 @@ import { transcribeEnabled, transcribeAllPending, transcribeClip } from "../serv
 import { interviewReport, consolidatedSummary, aiEnabled } from "../ai.js";
 import { requireAdmin } from "../auth.js";
 import { enqueueScreening, queueStatus, isQueued, screenOne, resetCounters } from "../services/queue.js";
-import { userCampuses } from "../db.js";
+import { userCampuses, canonPhone } from "../db.js";
 
 export const candidates = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 200 } });
@@ -57,7 +57,7 @@ async function createOne(req, b, file) {
   const dups = findDuplicates(b);
   if (b.source === "Referral" && !b.referrer?.trim()) throw new Error("Referrals must be logged with the referrer's name");
   const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, resume_file, owner_id, booking_token, referrer, location, current_employer, expected_salary, notice_period) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .run(b.role_id || null, b.name.trim(), b.phone || "", b.email || "", b.source || "Job portal", resume_text, file?.originalname || null, req.user.id, token(), b.referrer || "", b.location || "", b.current_employer || "", b.expected_salary || "", b.notice_period || "");
+    .run(b.role_id || null, b.name.trim(), canonPhone(b.phone), (b.email || "").trim().toLowerCase(), b.source || "Job portal", resume_text, file?.originalname || null, req.user.id, token(), b.referrer || "", b.location || "", b.current_employer || "", b.expected_salary || "", b.notice_period || "");
   logEvent(r.lastInsertRowid, "created", `via ${b.source || "Job portal"}${dups.length ? `, possible duplicate of #${dups.map((d) => d.id).join(",")}` : ""}`);
   return { ...getC(r.lastInsertRowid), duplicates: dups };
 }
@@ -116,7 +116,7 @@ candidates.put("/:id", upload.single("resume"), async (req, res, next) => {
     }
     if (String(b.role_id) !== String(cur.role_id)) b.screening = null;
     db.prepare("UPDATE candidates SET role_id=?, name=?, phone=?, email=?, source=?, resume_text=?, resume_file=?, notes=?, stage=?, stage_at=?, screening=?, owner_id=?, join_date=?, salary=?, referrer=?, location=?, current_employer=?, expected_salary=?, notice_period=? WHERE id=?")
-      .run(b.role_id || null, b.name, b.phone, b.email, b.source, b.resume_text, b.resume_file, b.notes, b.stage, b.stage_at, b.screening ? JSON.stringify(b.screening) : null, b.owner_id, b.join_date || null, b.salary || "", b.referrer || "", b.location || "", b.current_employer || "", b.expected_salary || "", b.notice_period || "", cur.id);
+      .run(b.role_id || null, b.name, canonPhone(b.phone), (b.email || "").trim().toLowerCase(), b.source, b.resume_text, b.resume_file, b.notes, b.stage, b.stage_at, b.screening ? JSON.stringify(b.screening) : null, b.owner_id, b.join_date || null, b.salary || "", b.referrer || "", b.location || "", b.current_employer || "", b.expected_salary || "", b.notice_period || "", cur.id);
     audit(req, `updated candidate ${cur.id}${b.stage !== cur.stage ? ` → ${b.stage}` : ""}`);
     if (req.body.needs_human === 0 || req.body.needs_human === "0") db.prepare("UPDATE candidates SET needs_human=0 WHERE id=?").run(cur.id);
     let automation = []; if (b.stage !== cur.stage) automation = await fire("stage_change", cur.id, {});

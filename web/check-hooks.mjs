@@ -5,7 +5,7 @@ walk("src"); let bad = 0;
 for (const f of files) {
   const src = fs.readFileSync(f, "utf8");
   // split into top-level function bodies roughly: from "function Name(" or "export default function" to the next top-level function
-  const parts = src.split(/\n(?=(?:export default )?function\s+[A-Z]\w*\s*\(|const\s+[A-Z]\w*\s*=\s*\()/);
+  const parts = src.split(/\n(?=(?:export\s+(?:default\s+)?)?function\s+[A-Za-z]\w*\s*\(|(?:export\s+)?const\s+[A-Z]\w*\s*=\s*\()/);
   for (const part of parts) {
     const lines = part.split("\n"); let returned = -1;
     lines.forEach((l, i) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, me } from "../api.js";
-import { Field } from "../components/ui.jsx";
+import { Field, PhoneInput } from "../components/ui.jsx";
 import { useToast } from "../components/Shell.jsx";
 
 // Setup wizard: shows what's connected, tests each piece live, registers the WhatsApp webhook.
@@ -27,7 +27,7 @@ export default function Setup() {
       <b>Test each connection</b>
       <div className="muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>Type your own number and email, then press each button. Green means it works.</div>
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
-        <Field label="Your WhatsApp / mobile number"><input placeholder="+91 ..." value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+        <Field label="Your WhatsApp / mobile number"><PhoneInput value={to} onChange={setTo} /></Field>
         <Field label="Your email"><input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
       </div>
       <div className="row">

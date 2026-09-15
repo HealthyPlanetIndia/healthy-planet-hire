@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, daysSince, BOARD, isManager, t } from "../api.js";
 import { useSearchParams } from "react-router-dom";
-import { Field, Score, ScrollStrip } from "../components/ui.jsx";
+import { Field, Score, ScrollStrip, PhoneInput, phoneValid } from "../components/ui.jsx";
 import CandidatePanel from "../components/CandidatePanel.jsx";
 import { useToast } from "../components/Shell.jsx";
 
@@ -61,14 +61,14 @@ export default function Pipeline() {
           <div style={{ fontWeight: 700, marginBottom: 10 }}>New candidate</div>
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0 12px" }}>
             <Field label="Full name"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-            <Field label="WhatsApp number"><input placeholder="+91 ..." value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+            <Field label="WhatsApp mobile number"><PhoneInput value={f.phone} onChange={(v) => setF({ ...f, phone: v })} /></Field>
             <Field label="Email"><input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
             <Field label="Applying for"><select value={f.role_id} onChange={(e) => setF({ ...f, role_id: e.target.value })}>{roles.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}</select></Field>
             <Field label="Source"><select value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>{["Job portal", "Referral", "Walk-in", "LinkedIn", "ARISE network", "Sourced", "Careers page"].map((s) => <option key={s}>{s}</option>)}</select></Field>
             <Field label="Resume file (PDF or Word)"><input type="file" accept=".pdf,.docx,.txt" onChange={(e) => setFile(e.target.files[0])} /></Field>
           </div>
           <Field label="Or paste the resume text"><textarea value={f.resume_text} onChange={(e) => setF({ ...f, resume_text: e.target.value })} /></Field>
-          <div className="row"><button className="primary" disabled={busy || !f.name.trim()} onClick={add}>{busy ? "Adding..." : "Add to pipeline"}</button><button onClick={() => setAdding(false)}>Cancel</button></div>
+          <div className="row"><button className="primary" disabled={busy || !f.name.trim() || !phoneValid(f.phone)} onClick={add}>{busy ? "Adding..." : "Add to pipeline"}</button><button onClick={() => setAdding(false)}>Cancel</button></div>
         </div>
       )}
       <ScrollStrip targetRef={boardRef} />

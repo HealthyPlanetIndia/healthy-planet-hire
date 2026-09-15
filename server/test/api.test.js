@@ -306,3 +306,8 @@ test("written assessments are typed interviews (paste and speed checks stay on) 
   for (const st of ["Screened", "AI interview", "Screening call", "Shortlist", "Leadership interview", "Subject assessment", "Demo lesson", "Written assessment", "Final review", "HR discussion", "Offer", "Joined", "Talent pool", "Not now"]) assert.ok(t[st], `template for ${st}`);
   assert.ok(!t["School interview"]);
 });
+
+test("phone numbers are stored in one shape and still match as duplicates", async () => {
+  const a = (await req("/candidates", { method: "POST", body: { name: "Phone A", role_id: 1, phone: "09810012345" } })).data; assert.equal(a.phone, "+91 9810012345");
+  const b = (await req("/candidates", { method: "POST", body: { name: "Phone B", role_id: 1, phone: "+91-98100-12345" } })).data; assert.equal(b.phone, "+91 9810012345"); assert.equal(b.duplicates[0].reason, "same phone");
+});

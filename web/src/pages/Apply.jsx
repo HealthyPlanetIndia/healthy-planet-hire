@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api.js";
+import { PhoneInput, phoneValid } from "../components/ui.jsx";
 
 // Public application page. Link it from the school website, or embed it: <iframe src="https://yourdomain/apply" />
 export default function Apply() {
@@ -48,7 +49,7 @@ export default function Apply() {
       {role?.description && <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--soft)", borderRadius: 10, padding: 12, marginBottom: 14 }}>{role.description}</div>}
       <div style={{ fontWeight: 700, marginBottom: 6 }}>Apply for this role</div>
       <label className="field">Full name<input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
-      <label className="field">WhatsApp number<input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></label>
+      <label className="field">WhatsApp mobile number<PhoneInput value={f.phone} onChange={(v) => setF({ ...f, phone: v })} /></label>
       <label className="field">Email<input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
       <label className="field">Where do you live (area and city)? Travel time matters for a school day.<input value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="e.g. Indirapuram, Ghaziabad" /></label>
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px" }}>
@@ -61,7 +62,7 @@ export default function Apply() {
       <label className="field">Paste your CV, or a summary of your qualifications and experience<textarea style={{ minHeight: 140 }} value={f.resume_text} onChange={(e) => setF({ ...f, resume_text: e.target.value })} /></label>
       <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>By applying you consent to Healthy Planet School using this information for recruitment only, keeping it for up to 12 months, restricting access to authorised staff and taking reasonable measures to protect it. Write to hr@healthyplanetschool.com to access, correct or delete your data.</div>
       {err && <div style={{ color: "#B0463C", fontSize: 13, marginBottom: 8 }}>{err}</div>}
-      <button className="primary" style={{ width: "100%" }} disabled={!f.name || !f.role_id || (!f.phone && !f.email)} onClick={async () => { try { await api("/public/apply", { method: "POST", body: f, auth: false }); setDone(true); } catch (e) { setErr(e.message); } }}>Send application</button>
+      <button className="primary" style={{ width: "100%" }} disabled={!f.name || !f.role_id || (!f.phone && !f.email) || !phoneValid(f.phone)} onClick={async () => { try { await api("/public/apply", { method: "POST", body: f, auth: false }); setDone(true); } catch (e) { setErr(e.message); } }}>Send application</button>
     </div>
   </Wrap>;
 }

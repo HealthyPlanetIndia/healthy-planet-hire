@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, daysSince, STAGES, ROUNDS, isManager, isAdmin, fmtDT, t } from "../api.js";
-import { Field, Score, Pill } from "./ui.jsx";
+import { Field, Score, Pill, PhoneInput } from "./ui.jsx";
 import { useToast } from "./Shell.jsx";
 
 export default function CandidatePanel({ id, roles, onClose }) {
@@ -109,7 +109,7 @@ export default function CandidatePanel({ id, roles, onClose }) {
         {tab === "resume" && <div className="grid">
           <div className="card">
             <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
-              <Field label="WhatsApp number"><input value={c.phone || ""} onChange={(e) => setC({ ...c, phone: e.target.value })} onBlur={() => save({ phone: c.phone })} /></Field>
+              <Field label="WhatsApp mobile number"><PhoneInput value={c.phone || ""} onChange={(v) => setC({ ...c, phone: v })} onBlur={() => save({ phone: c.phone })} /></Field>
               <Field label="Email"><input value={c.email || ""} onChange={(e) => setC({ ...c, email: e.target.value })} onBlur={() => save({ email: c.email })} /></Field>
             </div>
             <Field label={`Upload a new resume${c.resume_file ? ` (current: ${c.resume_file})` : ""}`}><div className="row"><input type="file" accept=".pdf,.docx,.txt" onChange={(e) => setFile(e.target.files[0])} /><button className="small" disabled={!file || !!busy} onClick={uploadResume}>Read file</button></div></Field>

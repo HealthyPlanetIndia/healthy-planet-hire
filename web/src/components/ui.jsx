@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { COUNTRIES, FIXED_LENGTH } from "../data/countries.js";
 export const Field = ({ label, children }) => <label className="field">{label}{children}</label>;
 export const Score = ({ v }) => <span className="score" style={{ color: v >= 75 ? "var(--green)" : v >= 55 ? "#C9A227" : "var(--coral)" }}>{v}</span>;
 export const VERDICT = { meets: { bg: "#E6F1EA", fg: "var(--green)", label: "Meets" }, partial: { bg: "#FDF3D6", fg: "#8A6A10", label: "Partly" }, "does not meet": { bg: "#FBE5E2", fg: "#B0463C", label: "Not shown" }, demonstrated: { bg: "#E6F1EA", fg: "var(--green)", label: "Demonstrated" }, weakness: { bg: "#FBE5E2", fg: "#B0463C", label: "Weakness shown" }, not_assessed: { bg: "#F1F3EE", fg: "var(--mute)", label: "Not assessed" } };
@@ -30,3 +31,24 @@ export function ScrollStrip({ targetRef }) {
     <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{Math.round((st.left + st.w) / st.sw * 100)}% across</span>
   </div>;
 }
+
+// Phone input: dial code dropdown (all UN member states, India first) plus the local mobile number.
+// Value in/out is "+91 9810012345". The dropdown shows the country name so the same code (+1, +7) is unambiguous.
+const CODE_SET = [...new Set(COUNTRIES.map((c) => c[0]))].sort((a, b) => b.length - a.length); // longest first for matching
+export function splitPhone(v) { const s = String(v || "").trim(); if (s.startsWith("+")) { const d = "+" + s.replace(/\D/g, ""); for (const code of CODE_SET) if (d.startsWith(code)) return { code, num: d.slice(code.length) }; } const d = s.replace(/\D/g, ""); return { code: "+91", num: d.length > 10 && d.startsWith("91") ? d.slice(2) : d.replace(/^0+/, "") }; }
+export function PhoneInput({ value, onChange, onBlur, disabled, placeholder }) {
+  const { code, num } = splitPhone(value);
+  const [iso, setIso] = useState(() => (COUNTRIES.find((c) => c[0] === code) || COUNTRIES[0])[2]);
+  const country = COUNTRIES.find((c) => c[2] === iso && c[0] === code) || COUNTRIES.find((c) => c[0] === code) || COUNTRIES[0];
+  const fixed = FIXED_LENGTH[code]; const max = fixed || 12;
+  const set = (c, n) => onChange(n ? `${c} ${n}` : "");
+  const bad = num && (fixed ? num.length !== fixed : num.length < 6);
+  return <div>
+    <div style={{ display: "flex", gap: 6 }}>
+      <select value={country[2]} disabled={disabled} onChange={(e) => { const c = COUNTRIES.find((x) => x[2] === e.target.value); setIso(c[2]); set(c[0], num); }} style={{ width: "auto", maxWidth: 170 }} aria-label="Country">{COUNTRIES.map((c) => <option key={c[2]} value={c[2]}>{c[1]} ({c[0]})</option>)}</select>
+      <input type="tel" inputMode="numeric" disabled={disabled} value={num} placeholder={placeholder || (fixed ? `${fixed}-digit mobile number` : "mobile number")} maxLength={max} onChange={(e) => set(code, e.target.value.replace(/\D/g, "").slice(0, max))} onBlur={onBlur} style={{ flex: 1, borderColor: bad ? "#E78076" : undefined }} aria-label="Mobile number" />
+    </div>
+    {bad && <div style={{ fontSize: 11, color: "#B0463C", marginTop: 3 }}>{fixed ? `Enter a ${fixed}-digit number for ${country[1]}.` : `Enter at least 6 digits.`}</div>}
+  </div>;
+}
+export const phoneValid = (v) => { const { code, num } = splitPhone(v); const fixed = FIXED_LENGTH[code]; return !num || (fixed ? num.length === fixed : num.length >= 6 && num.length <= 12); };
