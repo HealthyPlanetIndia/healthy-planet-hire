@@ -192,7 +192,7 @@ candidates.post("/:id/interviews/:ivId/rereport", requireStaff, async (req, res,
     if (!iv.report) { try { const { transcribeAllPending } = await import("../services/transcribe.js"); await transcribeAllPending(iv.id); transcript = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)).transcript; } catch {} }
     const rep = await interviewReport(getR(c.role_id), c, transcript, { confidence: Object.fromEntries(iv.clips.map((k) => [k.index, k.confidence])) });
     db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); audit(req, `report rewritten for ${c.id}`);
-    { const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)); const ai = fresh.integrity?.reasons?.filter((r) => r.source === "answers") || []; db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), ai.length ? { reasons: ai, summary: fresh.integrity.summary } : null)), iv.id); }
+    { const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const { analyseAnswers } = await import("../ai.js"); const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)); const spoken = (fresh.mode || "video") !== "text"; let ai = null; try { ai = await analyseAnswers(getR(c.role_id), c, fresh.transcript, spoken); } catch {} db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), ai, spoken)), iv.id); }
     if (c.stage === "AI interview") db.prepare("UPDATE candidates SET stage='Screening call', stage_at=datetime('now') WHERE id=?").run(c.id);
     res.json({ ok: true, report: rep });
   } catch (e) { next(e); }
@@ -205,7 +205,8 @@ candidates.post("/:id/interviews/:ivId/retranscribe", requireStaff, async (req, 
     const c = getC(req.params.id), iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=? AND candidate_id=?").get(req.params.ivId, c.id)); if (!iv) return res.status(404).json({ error: "Not found" });
     for (const k of iv.clips) await transcribeClip(iv.id, k.index);
     const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id));
-    if (fresh.status === "completed") { const rep = await interviewReport(getR(c.role_id), c, fresh.transcript, { confidence: Object.fromEntries(fresh.clips.map((k) => [k.index, k.confidence])) }); db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); }
+    if (fresh.status === "completed") { const rep = await interviewReport(getR(c.role_id), c, fresh.transcript, { confidence: Object.fromEntries(fresh.clips.map((k) => [k.index, k.confidence])) }); db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id);
+      const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const { analyseAnswers } = await import("../ai.js"); const spoken = (fresh.mode || "video") !== "text"; let ai = null; try { ai = await analyseAnswers(getR(c.role_id), c, fresh.transcript, spoken); } catch {} db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), ai, spoken)), iv.id); }
     logEvent(c.id, "retranscribed", `${iv.clips.length} clips`); audit(req, `retranscribed interview ${iv.id}`);
     res.json({ ok: true, clips: iv.clips.length });
   } catch (e) { next(e); }

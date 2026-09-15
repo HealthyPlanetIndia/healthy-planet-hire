@@ -229,7 +229,7 @@ function Clips({ candId, iv, say }) {
   const [clips, setClips] = useState(null); const [open, setOpen] = useState(false); const [canTx, setCanTx] = useState(false); const [busy, setBusy] = useState(false);
   const load = () => api(`/candidates/${candId}/interviews/${iv.id}/clips`).then((r) => { setClips(r.clips); setCanTx(r.transcribe); }).catch((e) => say(e.message));
   return <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
-    <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 14 }}>Video answers ({iv.clips.length})</b><button className="small" onClick={() => { setOpen(!open); if (!clips) load(); }}>{open ? "Hide" : "Watch"}</button></div>
+    <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 14 }}>Video answers ({iv.clips.length})</b><div className="row"><button className="small" onClick={() => { setOpen(!open); if (!clips) load(); }}>{open ? "Hide" : "Watch"}</button>{!isManager() && <button className="small" disabled={busy} title="Send all recordings to the transcription service again and rewrite the report from the improved text" onClick={async () => { setBusy(true); try { await api(`/candidates/${candId}/interviews/${iv.id}/retranscribe`, { method: "POST" }); say("Re-transcribed and report refreshed"); if (open) await load(); } catch (e) { say(e.message); } setBusy(false); }}>{busy ? "Transcribing..." : "Re-transcribe and refresh report"}</button>}</div></div>
     {open && !clips && <div className="muted" style={{ fontSize: 13 }}>Loading...</div>}
     {open && clips && <div className="grid" style={{ gap: 12, marginTop: 8 }}>
       {clips.map((k) => <div key={k.index} style={{ fontSize: 13 }}>
@@ -239,7 +239,7 @@ function Clips({ candId, iv, say }) {
         {k.browser_text && k.browser_text !== k.answer && <details style={{ fontSize: 12 }}><summary className="muted">What the phone heard</summary>{k.browser_text}</details>}
         {k.candidate_note && <div style={{ fontSize: 12, background: "#FDF3D6", borderRadius: 6, padding: "6px 8px", marginTop: 4 }}><b>Candidate's note on the transcription:</b> {k.candidate_note}</div>}
       </div>)}
-      {canTx && <button className="small" disabled={busy} onClick={async () => { setBusy(true); try { await api(`/candidates/${candId}/interviews/${iv.id}/retranscribe`, { method: "POST" }); say("Re-transcribed and report refreshed"); await load(); } catch (e) { say(e.message); } setBusy(false); }}>{busy ? "Transcribing..." : "Re-transcribe all and refresh report"}</button>}
+
       <div className="muted" style={{ fontSize: 12 }}>Stored encrypted on the school's server. Links expire after 30 minutes; each opening is logged. Deleted after 90 days or when the candidate is erased.</div>
     </div>}
   </div>;

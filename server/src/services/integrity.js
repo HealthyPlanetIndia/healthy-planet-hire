@@ -41,8 +41,9 @@ export function ruleBasedFlags(interview) {
   return reasons;
 }
 
-export function combine(rules, ai) {
-  const reasons = [...rules, ...(ai?.reasons || []).map((r) => ({ level: r.level || "medium", text: r.text, source: "answers" }))];
+export function combine(rules, ai, spoken = false) {
+  // For spoken interviews the recording is the evidence; text analysis can only ever add a low "worth watching" note
+  const reasons = [...rules, ...(ai?.reasons || []).map((r) => ({ level: spoken ? "low" : (r.level || "medium"), text: r.text, source: "answers" }))];
   const rank = { low: 1, medium: 2, high: 3 };
   const top = reasons.reduce((m, r) => Math.max(m, rank[r.level] || 1), 0);
   const highs = reasons.filter((r) => r.level === "high").length;
