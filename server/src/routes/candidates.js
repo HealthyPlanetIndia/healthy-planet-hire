@@ -192,7 +192,7 @@ candidates.post("/:id/interviews/:ivId/rereport", requireStaff, async (req, res,
     if (!iv.report) { try { const { transcribeAllPending } = await import("../services/transcribe.js"); await transcribeAllPending(iv.id); transcript = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)).transcript; } catch {} }
     const rep = await interviewReport(getR(c.role_id), c, transcript, { confidence: Object.fromEntries(iv.clips.map((k) => [k.index, k.confidence])) });
     db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); audit(req, `report rewritten for ${c.id}`);
-    if (!iv.integrity) { const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)); db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), null)), iv.id); }
+    { const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)); const ai = fresh.integrity?.reasons?.filter((r) => r.source === "answers") || []; db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), ai.length ? { reasons: ai, summary: fresh.integrity.summary } : null)), iv.id); }
     if (c.stage === "AI interview") db.prepare("UPDATE candidates SET stage='Screening call', stage_at=datetime('now') WHERE id=?").run(c.id);
     res.json({ ok: true, report: rep });
   } catch (e) { next(e); }
