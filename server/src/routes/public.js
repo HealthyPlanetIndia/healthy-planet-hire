@@ -48,7 +48,11 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
     const answer = (req.body.answer || "").trim(); if (!answer) return res.status(400).json({ error: "Please type an answer" });
     const askedAt = x.i.transcript[x.i.transcript.length - 1]?.at || Date.now();
     const idx = x.i.transcript.filter((m) => m.role === "user").length;
-    const served = x.i.clips.find((c) => c.index === idx)?.transcript;
+    let served = x.i.clips.find((c) => c.index === idx)?.transcript;
+    if (served == null && transcribeEnabled() && x.i.clips.some((c) => c.index === idx)) {
+      // the clip is uploaded but not yet transcribed: wait up to 25 s for the accurate text rather than let Maya react to the phone's guess
+      const t0 = Date.now(); while (Date.now() - t0 < 25000) { await new Promise((r) => setTimeout(r, 1500)); served = load(x.i.token).i.clips.find((c) => c.index === idx)?.transcript; if (served != null) break; }
+    }
     const content = served && served.length > 2 ? served : answer;
     const isRetake = x.i.retakes.some((r) => r.index === idx);
     const transcript = [...x.i.transcript, { role: "user", content, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)), ...(served ? { browser_text: answer, transcribed: true } : {}), ...(isRetake ? { retake: true } : {}) } }];

@@ -8,9 +8,11 @@ export function ruleBasedFlags(interview) {
   const reasons = [], sig = interview.signals || [], answers = (interview.transcript || []).filter((m) => m.role === "user" && m.meta);
   const count = (t) => sig.filter((s) => s.type === t).length;
 
-  const away = count("hidden") + count("blur");
-  if (away >= 5) reasons.push({ level: "high", text: `Left the interview screen ${away} times` });
-  else if (away >= 2) reasons.push({ level: "medium", text: `Left the interview screen ${away} times` });
+  // "hidden" is the tab or app being switched; "blur" also fires for notifications and address-bar taps, so it counts for less
+  const away = count("hidden") + Math.floor(count("blur") / 3);
+  if (away >= 8) reasons.push({ level: "high", text: `Left the interview screen about ${away} times` });
+  else if (away >= 4) reasons.push({ level: "medium", text: `Left the interview screen about ${away} times` });
+  else if (away >= 2) reasons.push({ level: "low", text: `Left the interview screen ${away} times (notifications can cause this)` });
 
   const pastes = sig.filter((s) => s.type === "paste" && (s.detail?.length || 0) >= PASTE_MIN_CHARS);
   if (sig.some((s) => s.type === "clip_failed")) reasons.push({ level: "low", text: "Some video uploads failed on the candidate's connection; those answers have transcript only" });
@@ -32,7 +34,8 @@ export function ruleBasedFlags(interview) {
   if (interview.proctor && camDenied) reasons.push({ level: "low", text: "Camera access was declined" });
   const faces = sig.filter((s) => s.type === "faces");
   const multi = faces.filter((s) => +s.detail >= 2).length, none = faces.filter((s) => +s.detail === 0).length;
-  if (multi) reasons.push({ level: "high", text: `More than one face seen in ${multi} of ${faces.length} camera checks` });
+  if (multi >= 2 && multi / faces.length >= 0.3) reasons.push({ level: "high", text: `More than one face seen in ${multi} of ${faces.length} camera checks` });
+  else if (multi) reasons.push({ level: "low", text: `A second face was seen once in ${faces.length} camera checks (a poster or a passer-by can cause this)` });
   if (faces.length && none / faces.length > 0.5) reasons.push({ level: "medium", text: `No face visible in ${none} of ${faces.length} camera checks` });
 
   return reasons;

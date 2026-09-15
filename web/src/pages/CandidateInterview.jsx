@@ -30,7 +30,7 @@ export default function CandidateInterview() {
   const [phase, setPhase] = useState("idle"); // idle | asking | thinking | answering | uploading | failed | retakeOffer
   const [countdown, setCountdown] = useState(0); const [seconds, setSeconds] = useState(0); const [busy, setBusy] = useState(false); const [emailed, setEmailed] = useState(false);
   const [retakeUsed, setRetakeUsed] = useState(false); const [isRetake, setIsRetake] = useState(false); const [pendingBlob, setPendingBlob] = useState(null);
-  const videoRef = useRef(null), streamRef = useRef(null), recRef = useRef(null), chunksRef = useRef([]), srRef = useRef(null), finalRef = useRef(""), timerRef = useRef(null), startedAtRef = useRef(0), phaseRef = useRef("idle"), audioRef = useRef(null), spokenForRef = useRef("");
+  const videoRef = useRef(null), streamRef = useRef(null), recRef = useRef(null), chunksRef = useRef([]), srRef = useRef(null), finalRef = useRef(""), interimRef = useRef(""), timerRef = useRef(null), startedAtRef = useRef(0), phaseRef = useRef("idle"), audioRef = useRef(null), spokenForRef = useRef("");
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   const t = STR[lang] || STR.en, checklist = CHECK[lang] || CHECK.en;
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -128,14 +128,15 @@ export default function CandidateInterview() {
       try { const rec = new MediaRecorder(streamRef.current, { mimeType: mime || undefined, videoBitsPerSecond: 400000, audioBitsPerSecond: 48000 }); rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data); rec.start(1000); recRef.current = rec; } catch { recRef.current = null; }
     }
     if (SR) { // browser transcript is only a fallback for the server's transcription; the candidate never sees it
-      const sr = new SR(); sr.lang = BCP[lang] || "en-IN"; sr.interimResults = false; sr.continuous = true; srRef.current = sr;
-      sr.onresult = (e) => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) finalRef.current = (finalRef.current + " " + e.results[i][0].transcript).trim(); };
+      const sr = new SR(); sr.lang = BCP[lang] || "en-IN"; sr.interimResults = true; sr.continuous = true; srRef.current = sr;
+      sr.onresult = (e) => { let interim = ""; for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) finalRef.current = (finalRef.current + " " + e.results[i][0].transcript).trim(); else interim += e.results[i][0].transcript; } interimRef.current = interim; };
       sr.onend = () => { if (phaseRef.current === "answering") { try { sr.start(); } catch {} } }; sr.onerror = () => {}; try { sr.start(); } catch {}
     }
   }
   async function finishAnswer() {
     clearInterval(timerRef.current); setPhase("uploading");
-    try { srRef.current?.stop(); } catch {}
+    // Let speech recognition confirm the last few words before we stop it (up to 1.5 s), then fold in any unconfirmed text
+    if (srRef.current) { const sr = srRef.current; await new Promise((res) => { let done = false; const fin = () => { if (!done) { done = true; res(); } }; sr.onend = fin; try { sr.stop(); } catch { fin(); } setTimeout(fin, 1500); }); if (interimRef.current) { finalRef.current = (finalRef.current + " " + interimRef.current).trim(); interimRef.current = ""; } }
     let blob = null;
     if (recRef.current && recRef.current.state !== "inactive") { await new Promise((res) => { recRef.current.onstop = res; recRef.current.stop(); }); blob = new Blob(chunksRef.current, { type: recRef.current.mimeType || "video/webm" }); }
     setPendingBlob(blob); await submit(blob, false);
@@ -195,12 +196,13 @@ export default function CandidateInterview() {
             <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>{lang === "hi" ? "यह कैसे चलेगा: माया हर सवाल बोलकर पूछेंगी। सवाल पूरा होने के 3 सेकंड बाद रिकॉर्डिंग अपने आप शुरू होगी। कैमरे की ओर देखकर बोलें, फिर 'हो गया' दबाएँ। सवाल दोहराने के लिए 'सवाल दोबारा' कहें या बटन दबाएँ। पूरे साक्षात्कार में एक जवाब दोबारा रिकॉर्ड किया जा सकता है; दोनों रिकॉर्डिंग रखी जाती हैं।" : "How it works: Maya asks each question aloud. Three seconds after she finishes, recording starts on its own. Speak to the camera, then press Done. To hear a question again, say “repeat the question” or press the button. Once in the interview you may re-record one answer; both recordings are kept and the second is marked as a re-take."}</div>
             {Object.keys(info.languages || {}).length > 1 && <div className="row" style={{ margin: "12px 0 4px", gap: 6 }}>{Object.entries(info.languages).map(([k, l]) => <button key={k} className={`small ${lang === k ? "primary" : ""}`} onClick={() => setLang(k)}>{l}</button>)}</div>}
 
-            <div style={{ fontWeight: 700, margin: "14px 0 6px" }}>{lang === "hi" ? "शुरू करने से पहले" : "Before you begin"}</div>
-            {checklist.map((c, i) => <label key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, lineHeight: 1.45, marginBottom: 8 }}><input type="checkbox" style={{ width: "auto", marginTop: 4 }} checked={ticks[i]} onChange={(e) => setTicks(ticks.map((x, j) => (j === i ? e.target.checked : x)))} /><span>{c}</span></label>)}
+            <div style={{ fontWeight: 700, fontSize: 15, margin: "16px 0 4px", paddingTop: 12, borderTop: "1px solid var(--line)" }}>{lang === "hi" ? "साक्षात्कार शुरू करने से पहले, कृपया सुनिश्चित करें:" : "Before starting the interview, please ensure the following:"}</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{lang === "hi" ? "हर बिंदु पढ़ें और सही का निशान लगाएँ।" : "Read and tick each point."}</div>
+            {checklist.map((c, i) => <label key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, lineHeight: 1.45, marginBottom: 8, background: ticks[i] ? "#E6F1EA" : "var(--soft)", borderRadius: 8, padding: "8px 10px" }}><input type="checkbox" style={{ width: "auto", marginTop: 4 }} checked={ticks[i]} onChange={(e) => setTicks(ticks.map((x, j) => (j === i ? e.target.checked : x)))} /><span><b style={{ marginRight: 6 }}>{i + 1}.</b>{c}</span></label>)}
             {info.candidate_email && !emailed && <button className="link" style={{ fontSize: 13, margin: "4px 0 10px" }} onClick={async () => { try { await api(`/public/interview/${token}/email-link`, { method: "POST", body: {}, auth: false }); setEmailed(true); } catch (e) { setErr(e.message); } }}>{t.emailMe}</button>}
             {emailed && <div style={{ fontSize: 13, color: "var(--green)", margin: "4px 0 10px" }}>{t.emailed}</div>}
 
-            <div style={{ fontWeight: 700, margin: "10px 0 6px" }}>{t.check}</div>
+            <div style={{ fontWeight: 700, fontSize: 15, margin: "16px 0 6px", paddingTop: 12, borderTop: "1px solid var(--line)" }}>{t.check}</div>
             {camState !== "on" && <div><button className="warm" onClick={startCamera}>{lang === "hi" ? "कैमरा और माइक चालू करें" : "Turn on camera and microphone"}</button>{camState === "denied" && <div style={{ color: "#B0463C", fontSize: 13, marginTop: 6 }}>{t.need}</div>}</div>}
             {camState === "on" && <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12, alignItems: "center" }}>
               <video ref={videoRef} autoPlay muted playsInline style={{ width: 180, height: 135, objectFit: "cover", borderRadius: 10, transform: "scaleX(-1)", background: "#000" }} />
