@@ -17,7 +17,7 @@ import { transcribeEnabled, transcribeAllPending, transcribeClip } from "../serv
 import { interviewReport, consolidatedSummary, aiEnabled } from "../ai.js";
 import { requireAdmin } from "../auth.js";
 import { enqueueScreening, queueStatus, isQueued, screenOne, resetCounters } from "../services/queue.js";
-import { userCampuses, canonPhone } from "../db.js";
+import { userCampuses, canonPhone, drawInterview } from "../db.js";
 
 export const candidates = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 200 } });
@@ -159,7 +159,8 @@ candidates.post("/:id/interviews", requireStaff, async (req, res, next) => {
     if (kind === "video" && !videoEnabled()) return res.status(400).json({ error: "Video interviews need DAILY_API_KEY in server/.env" });
     const tok = token(), days = +(req.body.valid_days || 5), expires = new Date(Date.now() + days * 86400000);
     let room = null; if (kind === "video") room = await createRoom(`hph-${tok}`, expires);
-    db.prepare("INSERT INTO interviews (candidate_id, token, language, expires_at, proctor, kind, room_url, room_name, mode) VALUES (?,?,?,?,?,?,?,?,?)").run(c.id, tok, req.body.language || "en", expires.toISOString(), req.body.proctor === false ? 0 : 1, kind, room?.url || null, room?.name || null, kind === "written" || req.body.mode === "text" ? "text" : "video");
+    const drawn = kind === "written" ? { questions: null, scenario: null } : drawInterview(role);
+    db.prepare("INSERT INTO interviews (candidate_id, token, language, expires_at, proctor, kind, room_url, room_name, mode, questions, scenario) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(c.id, tok, req.body.language || "en", expires.toISOString(), req.body.proctor === false ? 0 : 1, kind, room?.url || null, room?.name || null, kind === "written" || req.body.mode === "text" ? "text" : "video", drawn.questions ? JSON.stringify(drawn.questions) : null, drawn.scenario ? JSON.stringify(drawn.scenario) : null);
     if (kind !== "written" && (c.stage === "Applied" || c.stage === "Screened")) db.prepare("UPDATE candidates SET stage='AI interview', stage_at=datetime('now') WHERE id=?").run(c.id);
     if (kind === "written" && c.stage !== "Written assessment" && STAGES.indexOf(c.stage) < STAGES.indexOf("Written assessment")) db.prepare("UPDATE candidates SET stage='Written assessment', stage_at=datetime('now') WHERE id=?").run(c.id);
     logEvent(c.id, "interview_link", `${kind} ${tok}`);
@@ -190,7 +191,7 @@ candidates.post("/:id/interviews/:ivId/rereport", requireStaff, async (req, res,
     if (iv.status !== "completed") return res.status(400).json({ error: "The interview is not complete yet" });
     if (req.body.note) { transcript = [...transcript, { role: "user", content: `(Recruiter ${req.user.name} watched the recording and notes: ${req.body.note})`, meta: { recruiter_note: true } }]; logEvent(c.id, "recruiter_note", req.body.note.slice(0, 80)); }
     if (!iv.report) { try { const { transcribeAllPending } = await import("../services/transcribe.js"); await transcribeAllPending(iv.id); transcript = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)).transcript; } catch {} }
-    const rep = await interviewReport(getR(c.role_id), c, transcript, { confidence: Object.fromEntries(iv.clips.map((k) => [k.index, k.confidence])) });
+    const rep = await interviewReport(getR(c.role_id), c, transcript, { confidence: Object.fromEntries(iv.clips.map((k) => [k.index, k.confidence])), questions: iv.questions, scenario: iv.scenario });
     db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id); audit(req, `report rewritten for ${c.id}`);
     { const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const { analyseAnswers } = await import("../ai.js"); const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id)); const spoken = (fresh.mode || "video") !== "text"; let ai = null; try { ai = await analyseAnswers(getR(c.role_id), c, fresh.transcript, spoken); } catch {} db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), ai, spoken)), iv.id); }
     if (c.stage === "AI interview") db.prepare("UPDATE candidates SET stage='Screening call', stage_at=datetime('now') WHERE id=?").run(c.id);
@@ -205,7 +206,7 @@ candidates.post("/:id/interviews/:ivId/retranscribe", requireStaff, async (req, 
     const c = getC(req.params.id), iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=? AND candidate_id=?").get(req.params.ivId, c.id)); if (!iv) return res.status(404).json({ error: "Not found" });
     for (const k of iv.clips) await transcribeClip(iv.id, k.index);
     const fresh = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(iv.id));
-    if (fresh.status === "completed") { const rep = await interviewReport(getR(c.role_id), c, fresh.transcript, { confidence: Object.fromEntries(fresh.clips.map((k) => [k.index, k.confidence])) }); db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id);
+    if (fresh.status === "completed") { const rep = await interviewReport(getR(c.role_id), c, fresh.transcript, { confidence: Object.fromEntries(fresh.clips.map((k) => [k.index, k.confidence])), questions: fresh.questions, scenario: fresh.scenario }); db.prepare("UPDATE interviews SET report=? WHERE id=?").run(JSON.stringify(rep), iv.id);
       const { ruleBasedFlags, combine } = await import("../services/integrity.js"); const { analyseAnswers } = await import("../ai.js"); const spoken = (fresh.mode || "video") !== "text"; let ai = null; try { ai = await analyseAnswers(getR(c.role_id), c, fresh.transcript, spoken); } catch {} db.prepare("UPDATE interviews SET integrity=? WHERE id=?").run(JSON.stringify(combine(ruleBasedFlags(fresh), ai, spoken)), iv.id); }
     logEvent(c.id, "retranscribed", `${iv.clips.length} clips`); audit(req, `retranscribed interview ${iv.id}`);
     res.json({ ok: true, clips: iv.clips.length });

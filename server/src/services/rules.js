@@ -2,7 +2,7 @@
 // Triggers: stage_change, screened, interview_report, booked, reply
 // Conditions: { stage, min_score, max_score, risk: ["high", ...], role_id }
 // Actions: { type: "send_message", channel, template } | { type: "send_interview", kind } | { type: "move_stage", stage } | { type: "add_tag_note", text }
-import { db, rowRule, rowCandidate, rowRole, logEvent } from "../db.js";
+import { db, rowRule, rowCandidate, rowRole, logEvent, drawInterview } from "../db.js";
 import { getTemplates, fill, deliver } from "./messaging.js";
 import crypto from "crypto";
 
@@ -42,7 +42,8 @@ export async function fire(trigger, candidate_id, ctx = {}, depth = 0) {
         else if (a.type === "send_interview") {
           if (!role?.questions?.length) throw new Error("role has no questions");
           const token = crypto.randomBytes(12).toString("base64url"), expires = new Date(Date.now() + 5 * 86400000);
-          db.prepare("INSERT INTO interviews (candidate_id, token, language, expires_at, proctor, kind) VALUES (?,?,?,?,1,'text')").run(cand.id, token, "en", expires.toISOString());
+          const drawn = drawInterview(role);
+          db.prepare("INSERT INTO interviews (candidate_id, token, language, expires_at, proctor, kind, mode, questions, scenario) VALUES (?,?,?,?,1,'text','video',?,?)").run(cand.id, token, "en", expires.toISOString(), JSON.stringify(drawn.questions), drawn.scenario ? JSON.stringify(drawn.scenario) : null);
           if (["Applied", "Screened"].includes(cand.stage)) db.prepare("UPDATE candidates SET stage='AI interview', stage_at=datetime('now') WHERE id=?").run(cand.id);
           const link = `${(process.env.PUBLIC_URL || "").replace(/\/$/, "")}/interview/${token}`;
           if (cand.phone || cand.email) await deliver(cand, cand.phone ? "whatsapp" : "email", fill(getTemplates()["AI interview"], cand, role, { link, deadline: expires.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" }) }));

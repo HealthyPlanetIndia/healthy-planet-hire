@@ -23,7 +23,7 @@ const load = (token) => {
 pub.get("/interview/:token", (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).json({ error: "This interview link is not valid" });
   const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
-  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: Object.fromEntries(Object.entries(LANGUAGES).filter(([k]) => x.r.languages.includes(k))), mode: x.i.mode || "video", tts: ttsEnabled(), retake_used: x.i.retakes.length > 0, thinking_seconds: 3, candidate_email: !!x.c.email, allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: x.r.interview_mode === "interactive" && !!x.r.scenario, total: x.r.questions.length + (x.r.interview_mode === "interactive" && x.r.scenario ? 4 : 0), proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: Object.fromEntries(Object.entries(LANGUAGES).filter(([k]) => x.r.languages.includes(k))), mode: x.i.mode || "video", tts: ttsEnabled(), retake_used: x.i.retakes.length > 0, thinking_seconds: 3, candidate_email: !!x.c.email, allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: !!x.i.scenario, total: (x.i.questions?.length || x.r.questions.length) + (x.i.scenario ? (x.i.scenario.type === "situation" ? 2 : 3) : 0), answer_seconds: x.r.answer_seconds || 90, minutes: 15, proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
 });
 
 pub.post("/interview/:token/start", async (req, res, next) => {
@@ -33,7 +33,8 @@ pub.post("/interview/:token/start", async (req, res, next) => {
     if (new Date(x.i.expires_at) < new Date()) return res.status(400).json({ error: "This link has expired. Please ask the school for a new one." });
     if (x.i.transcript.length) return res.json({ transcript: x.i.transcript });
     if (req.body.language) x.i.language = req.body.language;
-    const t = await interviewTurn(x.r, x.c, x.i.language, []);
+    const drawn = x.i.questions ? { questions: x.i.questions, scenario: x.i.scenario } : null;
+    const t = await interviewTurn(x.r, x.c, x.i.language, [], drawn);
     const transcript = [{ role: "assistant", content: t.content, at: Date.now() }];
     db.prepare("UPDATE interviews SET status='in_progress', language=?, transcript=?, started_at=datetime('now') WHERE id=?").run(x.i.language, JSON.stringify(transcript), x.i.id);
     logEvent(x.c.id, "interview_started", "");
@@ -56,7 +57,8 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
     const content = served && served.length > 2 ? served : answer;
     const isRetake = x.i.retakes.some((r) => r.index === idx);
     const transcript = [...x.i.transcript, { role: "user", content, at: Date.now(), meta: { seconds: Math.max(1, Math.round((Date.now() - askedAt) / 1000)), ...(served ? { browser_text: answer, transcribed: true } : {}), ...(isRetake ? { retake: true } : {}) } }];
-    const t = await interviewTurn(x.r, x.c, x.i.language, transcript.map(({ role, content }) => ({ role, content })));
+    const drawn = x.i.questions ? { questions: x.i.questions, scenario: x.i.scenario } : null;
+    const t = await interviewTurn(x.r, x.c, x.i.language, transcript.map(({ role, content }) => ({ role, content })), drawn);
     transcript.push({ role: "assistant", content: t.content, at: Date.now() });
     db.prepare("UPDATE interviews SET transcript=? WHERE id=?").run(JSON.stringify(transcript), x.i.id);
     if (t.ended) {
@@ -74,7 +76,7 @@ async function finishInterview(x, transcript) {
   if (transcribeEnabled()) { await new Promise((r) => setTimeout(r, 4000)); await transcribeAllPending(x.i.id); transcript = load(x.i.token).i.transcript; }
   const fresh0 = load(x.i.token).i;
   const confidence = fresh0.clips.map((k) => k.confidence);
-  const rep = await interviewReport(x.r, x.c, transcript, { confidence: Object.fromEntries(fresh0.clips.map((k) => [k.index, k.confidence])) });
+  const rep = await interviewReport(x.r, x.c, transcript, { confidence: Object.fromEntries(fresh0.clips.map((k) => [k.index, k.confidence])), questions: fresh0.questions, scenario: fresh0.scenario });
   const fresh = load(x.i.token).i; // pick up signals that arrived during the interview
   const spoken = (fresh.mode || "video") !== "text";
   let ai = null; try { ai = await analyseAnswers(x.r, x.c, transcript, spoken); } catch {}

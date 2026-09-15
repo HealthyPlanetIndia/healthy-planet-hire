@@ -311,3 +311,14 @@ test("phone numbers are stored in one shape and still match as duplicates", asyn
   const a = (await req("/candidates", { method: "POST", body: { name: "Phone A", role_id: 1, phone: "09810012345" } })).data; assert.equal(a.phone, "+91 9810012345");
   const b = (await req("/candidates", { method: "POST", body: { name: "Phone B", role_id: 1, phone: "+91-98100-12345" } })).data; assert.equal(b.phone, "+91 9810012345"); assert.equal(b.duplicates[0].reason, "same phone");
 });
+
+test("each interview draws one question per competency and one scenario from the role's bank", async () => {
+  const role = (await req("/roles")).data.find((r) => r.id === 1);
+  assert.ok(role.scenarios.length >= 7); assert.ok(role.questions.length >= 10);
+  const comps = new Set(role.questions.map((q) => q.assesses));
+  const c = (await req("/candidates", { method: "POST", body: { name: "Draw Person", role_id: 1 } })).data;
+  const draws = [];
+  for (let i = 0; i < 3; i++) { const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data; const full = (await req(`/candidates/${c.id}`)).data.interviews.find((x) => x.token === iv.token); draws.push(full); assert.equal(full.questions.length, Math.min(4, comps.size)); assert.ok(full.questions.every((q) => comps.has(q.assesses))); assert.equal(new Set(full.questions.map((q) => q.assesses)).size, full.questions.length); assert.ok(full.scenario && full.scenario.title); }
+  const sets = new Set(draws.map((d) => d.questions.map((q) => q.text).join("|") + d.scenario.id)); assert.ok(sets.size >= 2, "draws should differ");
+  const page = (await req(`/public/interview/${draws[0].token}`, { auth: false })).data; assert.equal(page.interactive, true);
+});

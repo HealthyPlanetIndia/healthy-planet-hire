@@ -79,18 +79,27 @@ function RoleForm({ role, managers, onSave, onCancel }) {
       {r.criteria.map((c, i) => <div key={c.id} className="row" style={{ marginBottom: 6, flexWrap: "nowrap" }}><input placeholder="e.g. B.Ed or equivalent" value={c.text} onChange={(e) => setC(i, { text: e.target.value })} /><label style={{ fontSize: 12, whiteSpace: "nowrap" }}><input type="checkbox" style={{ width: "auto" }} checked={c.must} onChange={(e) => setC(i, { must: e.target.checked })} /> must</label><button className="small" onClick={() => setR({ ...r, criteria: r.criteria.filter((_, j) => j !== i) })}>×</button></div>)}
       <button className="small" onClick={() => setR({ ...r, criteria: [...r.criteria, { id: uid(), text: "", must: false }] })}>Add criterion</button>
       <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>AI interview questions (asked in order)</div>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Anchor each question to the grade band ("with your Grade 3 to 5 class") and say what it assesses. The report judges each answer only against its label; anything not asked about is reported as "not assessed".</div>
-      {qs.map((q, i) => <div key={i} className="row" style={{ marginBottom: 6, flexWrap: "nowrap" }}><span className="muted">{i + 1}</span><input value={q.text} onChange={(e) => setQ(i, { text: e.target.value })} style={{ flex: 2 }} /><select value={q.assesses} onChange={(e) => setQ(i, { assesses: e.target.value })} style={{ width: "auto", maxWidth: 200 }}>{comps.map((k) => <option key={k}>{k}</option>)}</select><button className="small" onClick={() => setR({ ...r, questions: qs.filter((_, j) => j !== i) })}>×</button></div>)}
-      <button className="small" onClick={() => setR({ ...r, questions: [...qs, { text: "", assesses: "Classroom thinking" }] })}>Add question</button>
+      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Group questions by what they assess. Each candidate is asked <b>one question per competency, drawn at random</b>, so no two interviews are identical but everyone is assessed on the same things. Add two or three variants per competency; anchor each to the grade band ("with your Grade 3 to 5 class"). Anything not asked about is reported as "not assessed".</div>
+      {comps.filter((k) => qs.some((q) => q.assesses === k)).map((k) => <div key={k} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "6px 8px", marginBottom: 6 }}>
+        <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 13 }}>{k}</b><span className="muted" style={{ fontSize: 11 }}>{qs.filter((q) => q.assesses === k).length} variant{qs.filter((q) => q.assesses === k).length === 1 ? "" : "s"}, one asked per interview</span></div>
+        {qs.map((q, i) => q.assesses === k && <div key={i} className="row" style={{ marginTop: 6, flexWrap: "nowrap" }}><input value={q.text} onChange={(e) => setQ(i, { text: e.target.value })} style={{ flex: 1 }} /><select value={q.assesses} onChange={(e) => setQ(i, { assesses: e.target.value })} style={{ width: "auto", maxWidth: 160 }}>{comps.map((c) => <option key={c}>{c}</option>)}</select><button className="small" onClick={() => setR({ ...r, questions: qs.filter((_, j) => j !== i) })}>×</button></div>)}
+        <button className="small" style={{ marginTop: 6 }} onClick={() => setR({ ...r, questions: [...qs, { text: "", assesses: k }] })}>Add a variant</button>
+      </div>)}
+      <div className="row"><select id="newcomp" style={{ width: "auto" }} defaultValue="">{["", ...comps.filter((k) => !qs.some((q) => q.assesses === k))].map((k) => <option key={k} value={k}>{k || "Add a competency..."}</option>)}</select><button className="small" onClick={() => { const k = document.getElementById("newcomp").value; if (k) setR({ ...r, questions: [...qs, { text: "", assesses: k }] }); }}>Add</button></div>
       {uncovered.length > 0 && <div style={{ fontSize: 12, background: "#FDF3D6", borderRadius: 8, padding: "6px 10px", marginTop: 8 }}>No question is designed to test: {uncovered.map((c) => c.text).join("; ")}. These will show as "not assessed" in interview reports unless you add a question for them.</div>}
       <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>Brief for Maya (what a panel member would know)</div>
       <textarea value={r.brief || ""} onChange={(e) => setR({ ...r, brief: e.target.value })} placeholder="e.g. Children aged 8 to 11 in Grades 3 to 5; class teacher for all subjects except Hindi; CBSE-aligned; classes of about 28; project work and outdoor learning are timetabled" style={{ minHeight: 60 }} />
       <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>Interview languages offered to candidates</div>
       <div className="row">{Object.entries(status?.languages || { en: "English", hi: "हिन्दी" }).map(([k, l]) => <label key={k} style={{ fontSize: 13 }}><input type="checkbox" style={{ width: "auto" }} checked={(r.languages || ["en"]).includes(k)} disabled={k === "en"} onChange={(e) => setR({ ...r, languages: e.target.checked ? [...(r.languages || ["en"]), k] : (r.languages || ["en"]).filter((x) => x !== k) })} /> {l}</label>)}</div>
       <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>English is always on. Add others only when the role needs them, for example a Hindi teacher.</div>
+      <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>Interview length</div>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+        <Field label="Questions per interview (drawn from the bank, one per competency)"><select value={r.max_questions || 4} onChange={(e) => setR({ ...r, max_questions: +e.target.value })}>{[3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} {n === 4 ? "(recommended, about 12 to 15 minutes with a scenario)" : ""}</option>)}</select></Field>
+        <Field label="Maximum seconds per answer (recording stops automatically)"><select value={r.answer_seconds || 90} onChange={(e) => setR({ ...r, answer_seconds: +e.target.value })}>{[60, 75, 90, 120, 150].map((n) => <option key={n} value={n}>{n} seconds</option>)}</select></Field>
+      </div>
       <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>Interview style</div>
-      <div className="row" style={{ marginBottom: 6 }}>{[["standard", "Standard: questions only (1 credit-equivalent, ~10 min)"], ["interactive", "Interactive: questions plus a role play Maya acts out (~15 min)"]].map(([k, l]) => <label key={k} style={{ fontSize: 13 }}><input type="radio" style={{ width: "auto" }} checked={(r.interview_mode || "standard") === k} onChange={() => setR({ ...r, interview_mode: k })} /> {l}</label>)}</div>
-      {r.interview_mode === "interactive" && <Field label="Role-play scenario. Describe the other person and the situation; Maya plays them and reacts to what the candidate says."><textarea value={r.scenario || ""} onChange={(e) => setR({ ...r, scenario: e.target.value })} placeholder="e.g. A parent has come in upset that her son was called names during group work and says the teacher did nothing. She wants to know what you will do right now." /></Field>}
+      <div className="row" style={{ marginBottom: 6 }}>{[["standard", "Standard: questions only (~10 min)"], ["interactive", "Interactive: questions plus one scenario drawn from the bank below (~15 min)"]].map(([k, l]) => <label key={k} style={{ fontSize: 13 }}><input type="radio" style={{ width: "auto" }} checked={(r.interview_mode || "standard") === k} onChange={() => setR({ ...r, interview_mode: k })} /> {l}</label>)}</div>
+      {r.interview_mode === "interactive" && <Scenarios r={r} setR={setR} comps={comps} />}
       <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>Panel rounds and their rubrics (each item scored 1 to 5)</div>
       {ROUNDS.map((round) => <div key={round} style={{ marginBottom: 10 }}>
         <div className="muted" style={{ fontSize: 13, marginBottom: 4 }}>{round}{round === "Leadership interview" ? " (Principal / leadership)" : round === "Subject assessment" ? " (Department Coordinator / subject expert)" : " (Department Coordinator / subject expert)"}</div>
@@ -122,5 +131,37 @@ function Slots({ role, onBack, say }) {
       {slots.length === 0 && <div className="muted" style={{ fontSize: 13 }}>No upcoming slots.</div>}
       {slots.map((s) => <div key={s.id} className="row" style={{ justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderTop: "1px solid var(--line)" }}><span>{fmtDT(s.starts_at)} · {s.stage} · {s.location}</span>{s.candidate_id ? <b style={{ color: "var(--green)" }}>{s.candidate_name}</b> : <button className="small" onClick={async () => { await api(`/roles/${role.id}/slots/${s.id}`, { method: "DELETE" }); load(); }}>Remove</button>}</div>)}
     </div>
+  </div>;
+}
+
+// Scenario bank editor. Two kinds: a role play (Maya plays a parent whose stated concern hides the real one) and a
+// classroom situation (Maya describes a moment, asks what the candidate does, then adds a twist).
+function Scenarios({ r, setR, comps }) {
+  const list = r.scenarios || [];
+  const set = (i, patch) => setR({ ...r, scenarios: list.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+  const [open, setOpen] = useState(null);
+  return <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+    <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 13 }}>Scenario bank ({list.length})</b><div className="row"><button className="small" onClick={async () => { const d = await api("/roles/defaults/scenarios"); const have = new Set(list.map((x) => x.id)); setR({ ...r, scenarios: [...list, ...d.filter((x) => !have.has(x.id))] }); }}>Add the suggested scenarios</button><button className="small" onClick={() => { setR({ ...r, scenarios: [...list, { id: "c" + uid(), type: "roleplay", title: "", assesses: "Handling parents", persona: "", surface: "", underlying: "", setup: "", twist: "", observe: "" }] }); setOpen(list.length); }}>New scenario</button></div></div>
+    <div className="muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>Each interview draws one at random. In a role play the parent says only the surface concern; the real issue comes out only if the candidate listens and probes. In a situation Maya describes the moment, asks what they would do, then adds the twist.</div>
+    {list.length === 0 && <div className="muted" style={{ fontSize: 12 }}>No scenarios yet. Add the suggested ones to start.</div>}
+    {list.map((sc, i) => <div key={sc.id || i} style={{ borderTop: "1px solid var(--line)", padding: "6px 0" }}>
+      <div className="row" style={{ justifyContent: "space-between" }}><span style={{ fontSize: 13 }}><span className="pill" style={{ background: sc.type === "roleplay" ? "#EAF1FB" : "#E6F1EA", marginRight: 6 }}>{sc.type === "roleplay" ? "Role play" : "Situation"}</span><b>{sc.title || "(untitled)"}</b> <span className="muted">· {sc.assesses}</span></span><div className="row"><button className="small" onClick={() => setOpen(open === i ? null : i)}>{open === i ? "Close" : "Edit"}</button><button className="small danger" onClick={() => setR({ ...r, scenarios: list.filter((_, j) => j !== i) })}>×</button></div></div>
+      {open === i && <div style={{ marginTop: 6 }}>
+        <div className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr", gap: "0 8px" }}>
+          <Field label="Title (for you, not the candidate)"><input value={sc.title} onChange={(e) => set(i, { title: e.target.value })} /></Field>
+          <Field label="Kind"><select value={sc.type} onChange={(e) => set(i, { type: e.target.value })}><option value="roleplay">Role play (Maya plays a person)</option><option value="situation">Classroom situation</option></select></Field>
+          <Field label="Assesses"><select value={sc.assesses} onChange={(e) => set(i, { assesses: e.target.value })}>{comps.map((c) => <option key={c}>{c}</option>)}</select></Field>
+        </div>
+        {sc.type === "roleplay" ? <>
+          <Field label="Who Maya plays, and the setting"><input value={sc.persona || ""} onChange={(e) => set(i, { persona: e.target.value })} placeholder="e.g. Mrs Mehra, mother of Riya in Grade 4, polite but tense, at pick-up time" /></Field>
+          <Field label="What the parent says at first (the surface concern)"><textarea value={sc.surface || ""} onChange={(e) => set(i, { surface: e.target.value })} style={{ minHeight: 50 }} /></Field>
+          <Field label="What is really going on, revealed only if the candidate listens and probes"><textarea value={sc.underlying || ""} onChange={(e) => set(i, { underlying: e.target.value })} style={{ minHeight: 50 }} /></Field>
+        </> : <>
+          <Field label="The classroom moment Maya describes"><textarea value={sc.setup || ""} onChange={(e) => set(i, { setup: e.target.value })} style={{ minHeight: 50 }} /></Field>
+          <Field label="The twist Maya adds after their first answer"><textarea value={sc.twist || ""} onChange={(e) => set(i, { twist: e.target.value })} style={{ minHeight: 40 }} /></Field>
+        </>}
+        <Field label="What the panel wants to see (guides the report; the candidate never sees this)"><textarea value={sc.observe || ""} onChange={(e) => set(i, { observe: e.target.value })} style={{ minHeight: 50 }} /></Field>
+      </div>}
+    </div>)}
   </div>;
 }
