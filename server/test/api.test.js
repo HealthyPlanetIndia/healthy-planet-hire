@@ -322,3 +322,14 @@ test("each interview draws one question per competency and one scenario from the
   const sets = new Set(draws.map((d) => d.questions.map((q) => q.text).join("|") + d.scenario.id)); assert.ok(sets.size >= 2, "draws should differ");
   const page = (await req(`/public/interview/${draws[0].token}`, { auth: false })).data; assert.equal(page.interactive, true);
 });
+
+test("role templates are complete and a role created from one draws correctly", async () => {
+  const list = (await req("/roles/defaults/templates")).data; assert.ok(list.length >= 15);
+  for (const t of list) { const full = (await req(`/roles/defaults/templates/${t.id}`)).data; assert.ok(full.questions.length >= 12, t.id); assert.ok(full.scenarios.length >= 3, t.id); assert.ok(full.brief && full.rubrics && full.written_prompt, t.id); const comps = new Set(full.questions.map((q) => q.assesses)); for (const k of comps) assert.ok(full.questions.filter((q) => q.assesses === k).length >= 3, `${t.id} ${k} variants`); }
+  const tpl = (await req("/roles/defaults/templates/middle-subject-teacher")).data; const { id, ...body } = tpl;
+  const role = (await req("/roles", { method: "POST", body: { ...body, campus: "Suncity", justification: "New section" } })).data;
+  assert.equal(role.status, "open"); assert.equal(role.scenarios.length, 5); assert.equal(role.max_questions, 4);
+  const c = (await req("/candidates", { method: "POST", body: { name: "Template Person", role_id: role.id } })).data;
+  const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
+  const full = (await req(`/candidates/${c.id}`)).data.interviews[0]; assert.equal(full.questions.length, 4); assert.ok(full.scenario.id.startsWith("m"));
+});

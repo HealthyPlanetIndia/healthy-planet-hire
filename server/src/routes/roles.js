@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db, rowRole, ACTIVE_STAGES, audit, DEFAULT_RUBRIC, userCampuses, normQuestions, DEFAULT_SCENARIOS } from "../db.js";
+import { ROLE_TEMPLATES } from "../templates.js";
 import { draftJobDescription } from "../ai.js";
 import { requireStaff, requireAdmin } from "../auth.js";
 
@@ -43,6 +44,8 @@ roles.put("/:id", (req, res) => {
   audit(req, `updated role ${req.params.id}`); res.json(withCounts(get(req.params.id)));
 });
 roles.get("/defaults/scenarios", (req, res) => res.json(DEFAULT_SCENARIOS));
+roles.get("/defaults/templates", (req, res) => res.json(ROLE_TEMPLATES.map(({ id, title, department, grade, questions, scenarios }) => ({ id, title, department, grade, questions: questions.length, scenarios: scenarios.length }))));
+roles.get("/defaults/templates/:id", (req, res) => { const t = ROLE_TEMPLATES.find((x) => x.id === req.params.id); if (!t) return res.status(404).json({ error: "No such template" }); res.json(t); });
 roles.delete("/:id", requireStaff, (req, res) => { db.prepare("DELETE FROM roles WHERE id = ?").run(req.params.id); audit(req, `deleted role ${req.params.id}`); res.json({ ok: true }); });
 roles.post("/:id/job-description", requireStaff, async (req, res, next) => {
   try { const r = rowRole(get(req.params.id)); const text = await draftJobDescription(r); db.prepare("UPDATE roles SET description=? WHERE id=?").run(text, r.id); res.json({ text }); } catch (e) { next(e); }
