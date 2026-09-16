@@ -1,6 +1,6 @@
 # Healthy Planet Hire: setting it up yourself
 
-You do not need to know Node, Docker or any programming. You will use three websites and fill in
+You do not need to know Node, Docker or any programming. Current software version: 2026-09-15.14. You will use three websites and fill in
 a few forms. Budget about two hours the first evening, then a few days of waiting on Meta for
 WhatsApp. Cost: roughly ₹450 a month for hosting plus AI usage (₹5 to ₹15 per candidate).
 
@@ -112,25 +112,37 @@ Once signed in, click **Setup** in the top menu. It lists every step with a tick
 connection with a button, and tells you exactly what to fix. Come back to it after every step below;
 the home screen also nags you until the required items are green.
 
+![Setup page](09-setup.png)
+
 Do these inside the app, in this order.
 
 1. **Settings → Team.** Add your HR person and anyone else. Recruiter sees everything; Hiring
-   manager (a principal or HOD) sees only shortlisted candidates for roles you assign them. If you
-   run more than one campus, set each person's campus.
+   manager (a principal or HOD) sees only shortlisted candidates for roles you assign them. Set each
+   person's campus (Sun City or Wishtown) if they should see only one.
 2. **Settings → Message templates.** Read every template and rewrite it in your own words. These
-   go to candidates under the school's name. Do the offer letter too.
-3. **Roles.** Delete the two samples or edit them. For each real role write: the criteria (tick
-   "must" for non-negotiables), five to six interview questions, and the demo-lesson rubric. Turn on
-   Interactive and write a scenario if you want Maya to role-play with candidates.
-4. **Roles → Slots.** Add interview times for the coming weeks so candidates can self-book.
-5. **Automation → WhatsApp assistant.** Add at least ten questions candidates always ask, with
-   your answers: location, timings, documents to bring, when they'll hear back, salary range policy.
-   The assistant only answers from this list.
-6. **Automation → Rules.** Leave everything off for the first two weeks. Turn on rules one at a time
+   go to candidates under the school's name. Do the offer and appointment letters too.
+3. **Settings → Maya's voice** (once the ElevenLabs key is in): pick the accent, tone and speed, press
+   "Hear a sample".
+4. **Roles → Start from a template.** Pick the closest template (Primary Teacher, Music, Front Office
+   and so on). The form opens filled in with criteria, a bank of simple questions, scenarios, rubrics
+   and Maya's brief. Choose the campus, write the justification, adjust anything, submit. Each
+   candidate is later drawn four questions and one scenario from the bank, so interviews differ.
+
+![Roles page](02-roles.png)
+
+![Requisition form](03-roleform.png)
+
+5. **Roles → Slots.** Add interview times for the coming weeks so shortlisted candidates can self-book.
+6. **Automation → WhatsApp assistant.** Add at least ten questions candidates always ask, with
+   your answers: location, timings, documents to bring, when they'll hear back. The assistant only
+   answers from this list.
+7. **Automation → Rules.** Leave everything off for the first two weeks. Turn on rules one at a time
    once you have seen a few real candidates go through.
-7. Copy the **Apply link** from a role card and give it to whoever manages the school website. That
-   page is how applicants enter the pipeline. Also give them `PUBLIC_URL/api/public/jobs.xml` if the
-   school posts on Indeed.
+8. Give the careers page address to whoever manages the school website: **careers.hp.school**
+   (or your `PUBLIC_URL` followed by `/apply`). Applicants pick a role tile, fill in their details and
+   upload a resume; the system acknowledges each application naming the role and campus.
+
+![Careers page](11-careers.png)
 
 ## Step 5. Connect WhatsApp (start now; Meta takes days)
 
@@ -197,7 +209,7 @@ For Zoho or others, use their SMTP host and port instead; the rest is the same.
 
 ## Step 7. Optional extras
 
-- **Accurate transcription (do this one):** create a free account at **deepgram.com** (it comes with
+- **Accurate transcription (do this one, it matters most):** create a free account at **deepgram.com** (it comes with
   about $200 of credit, enough for hundreds of interviews). In the console click **API Keys → Create
   a New API Key**, copy it, and add `DEEPGRAM_API_KEY` in Render → Environment. Then in the app's
   Setup page press **Test transcription**. From then on spoken answers are transcribed on the server
@@ -215,9 +227,15 @@ For Zoho or others, use their SMTP host and port instead; the rest is the same.
 
 Before announcing anything:
 
-1. Add yourself as a candidate with your own phone and email. Go through every step: screening,
-   AI interview on your phone (try both typing and speaking), booking a slot, a scoring link sent
-   to a colleague, moving to Offer (it will stop you until checks are verified), the offer letter.
+1. Apply to a role yourself from the careers page with your own phone and email. Go through every
+   step: screening, the video interview on a laptop (briefing, checklist, camera check, four
+   questions and a scenario), the screening call, booking a slot, a scoring link sent to a
+   colleague, the Director's Final review, Checks (it will stop you until they are verified), the
+   offer letter with its reference number.
+
+![Candidate briefing](12-briefing.png)
+
+![Candidate card](05-card.png)
 2. Ask two teachers to take the AI interview for real and read their reports with them.
 3. Fix templates and criteria based on what felt wrong.
 
