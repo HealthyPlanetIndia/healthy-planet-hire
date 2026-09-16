@@ -33,7 +33,7 @@ export function getTemplates() {
   return t;
 }
 export function fill(tpl, cand, role, extra = {}) {
-  const vars = { name: (cand.name || "").split(" ")[0], role: role?.title || "the role", campus: role?.campus || "Noida", link: "{link}", slots: "{slots}", deadline: "{deadline}", join_date: cand.join_date || "{join_date}", reporting_manager: role?.reporting_manager || "{reporting_manager}", ...extra };
+  const vars = { name: (cand.name || "").split(" ")[0], role: role?.title || "the role", campus: role?.campus || "the campus", link: "{link}", slots: "{slots}", deadline: "{deadline}", join_date: cand.join_date || "{join_date}", reporting_manager: role?.reporting_manager || "{reporting_manager}", ...extra };
   return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`);
 }
 

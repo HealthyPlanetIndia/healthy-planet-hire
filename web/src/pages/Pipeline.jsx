@@ -16,7 +16,7 @@ export default function Pipeline() {
   const [bulk, setBulk] = useState(false); const [bulkFiles, setBulkFiles] = useState([]);
   const [campus, setCampus] = useState(""); const [queue, setQueue] = useState(null);
   useEffect(() => { if (!queue || (queue.pending === 0 && queue.active === 0)) return; const iv = setInterval(async () => { const q = await api("/candidates/queue"); setQueue(q); if (q.pending === 0 && q.active === 0) { clearInterval(iv); load(); say(`Screening finished: ${q.done} done${q.failed ? `, ${q.failed} failed` : ""}`); } else load(); }, 2500); return () => clearInterval(iv); }, [queue?.pending, queue?.active]);
-  const campuses = [...new Set(roles.map((r) => r.campus).filter(Boolean))];
+  const campuses = [...new Set(roles.map((r) => r.campus).filter(Boolean))].sort();
   const boardRef = useRef(null);
   async function importBulk() { setBusy(true); try { const fd = new FormData(); fd.append("role_id", f.role_id); for (const x of bulkFiles) fd.append("files", x); const r = await api("/candidates/bulk", { method: "POST", form: fd }); say(`Imported ${r.created}${r.duplicates ? `, ${r.duplicates} possible duplicates` : ""}${r.failed.length ? `, ${r.failed.length} failed` : ""}`); if (r.failed.length) console.warn(r.failed); setBulk(false); setBulkFiles([]); load(); } catch (e) { say(e.message); } setBusy(false); }
 

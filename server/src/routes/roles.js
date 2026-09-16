@@ -19,7 +19,7 @@ roles.get("/", (req, res) => {
 });
 // Step 1 Manpower Requisition: anyone on staff (including Principals as hiring managers) raises it; the Director approves before it is posted.
 roles.post("/", (req, res) => {
-  const { title, department = "", campus = "Noida", openings = 1, criteria = [], questions = [], rubric = DEFAULT_RUBRIC, rubrics = null, manager_id = null, salary_band = "", description = "", interview_mode = "standard", scenario = "", grade = "", subject = "", justification = "", reporting_manager = "", ijp_until = null, written_prompt = null, languages = ["en"], brief = "", scenarios = [], max_questions = 4, answer_seconds = 90 } = req.body;
+  const { title, department = "", campus = "Wishtown, Sec 131, Noida", openings = 1, criteria = [], questions = [], rubric = DEFAULT_RUBRIC, rubrics = null, manager_id = null, salary_band = "", description = "", interview_mode = "standard", scenario = "", grade = "", subject = "", justification = "", reporting_manager = "", ijp_until = null, written_prompt = null, languages = ["en"], brief = "", scenarios = [], max_questions = 4, answer_seconds = 90 } = req.body;
   if (!title?.trim()) return res.status(400).json({ error: "Title is required" });
   if (!justification?.trim() && req.user.role !== "admin") return res.status(400).json({ error: "A justification is required on the manpower requisition" });
   const status = req.user.role === "admin" ? "open" : "requested";
@@ -56,7 +56,7 @@ roles.get("/:id/slots", (req, res) => res.json(db.prepare("SELECT s.*, c.name ca
 roles.post("/:id/slots", requireStaff, (req, res) => {
   // body: { slots: [{starts_at, ends_at}], stage, location } or { date, times: ["10:00","11:00"], minutes, stage, location }
   const ins = db.prepare("INSERT INTO slots (role_id, stage, starts_at, ends_at, location) VALUES (?,?,?,?,?)");
-  const stage = req.body.stage || "Leadership interview", loc = req.body.location || "Healthy Planet School, Noida";
+  const stage = req.body.stage || "Leadership interview", loc = req.body.location || `Healthy Planet School, ${rowRole(get(req.params.id))?.campus || ""}`.trim();
   let list = req.body.slots || [];
   if (req.body.date && req.body.times) list = req.body.times.map((t) => { const s = new Date(`${req.body.date}T${t}:00+05:30`); return { starts_at: s.toISOString(), ends_at: new Date(s.getTime() + (req.body.minutes || 45) * 60000).toISOString() }; });
   for (const s of list) ins.run(req.params.id, stage, s.starts_at, s.ends_at, loc);

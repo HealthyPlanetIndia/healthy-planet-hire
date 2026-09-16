@@ -10,8 +10,8 @@ export default function Apply() {
   useEffect(() => { if (roleId) setF((x) => ({ ...x, role_id: roleId })); }, [roleId]);
   const role = roles.find((r) => String(r.id) === String(f.role_id));
   const campuses = [...new Set(roles.map((r) => r.campus).filter(Boolean))];
-  const CAMPUS_COLOR = { Noida: "var(--green)", Suncity: "var(--blue)", Ghaziabad: "var(--coral)" };
-  const colour = (c) => CAMPUS_COLOR[c] || "var(--yellow)";
+  const colour = (c) => /suncity|ghaziabad/i.test(c || "") ? "var(--blue)" : /wishtown|noida/i.test(c || "") ? "var(--green)" : "var(--yellow)";
+  const light = (c) => /suncity|ghaziabad|wishtown|noida/i.test(c || "");
 
   // Listing: one tile per open role, campus shown clearly
   if (!roleId) return <div style={{ minHeight: "100vh", background: "var(--paper)" }}>
@@ -27,7 +27,7 @@ export default function Apply() {
       {roles.length === 0 && <div className="card muted">No open positions right now. Check back soon, or write to hr@healthyplanetschool.com.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
         {roles.filter((r) => !campus || r.campus === campus).map((r) => <Link key={r.id} to={`/apply/${r.id}`} className="card" style={{ textDecoration: "none", color: "inherit", display: "flex", flexDirection: "column", gap: 8, borderTop: `5px solid ${colour(r.campus)}`, transition: "transform .12s" }} onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")} onMouseLeave={(e) => (e.currentTarget.style.transform = "none")}>
-          <span className="pill" style={{ alignSelf: "flex-start", background: colour(r.campus), color: r.campus === "Suncity" || r.campus === "Noida" ? "#fff" : "#000", fontWeight: 500 }}>{r.campus} campus</span>
+          <span className="pill" style={{ alignSelf: "flex-start", background: colour(r.campus), color: light(r.campus) ? "#fff" : "#000", fontWeight: 500 }}>{r.campus}</span>
           <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.25 }}>{r.title}</div>
           <div className="muted" style={{ fontSize: 13 }}>{[r.department, r.grade, r.subject].filter(Boolean).join(" · ")}</div>
           {r.description && <div className="muted" style={{ fontSize: 13, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.description.replace(/^#+.*$/gm, "").trim()}</div>}
@@ -43,7 +43,7 @@ export default function Apply() {
   return <Wrap>
     <Link to="/apply" className="link" style={{ fontSize: 13, display: "inline-block", marginBottom: 10 }}>← All positions</Link>
     <div className="card" style={{ borderTop: `5px solid ${colour(role?.campus)}` }}>
-      <span className="pill" style={{ background: colour(role?.campus), color: role?.campus === "Suncity" || role?.campus === "Noida" ? "#fff" : "#000", fontWeight: 500 }}>{role?.campus} campus</span>
+      <span className="pill" style={{ background: colour(role?.campus), color: light(role?.campus) ? "#fff" : "#000", fontWeight: 500 }}>{role?.campus}</span>
       <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{role?.title}</div>
       <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>{[role?.department, role?.grade, role?.subject, role?.salary_band].filter(Boolean).join(" · ")}</div>
       {role?.description && <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--soft)", borderRadius: 10, padding: 12, marginBottom: 14 }}>{role.description}</div>}

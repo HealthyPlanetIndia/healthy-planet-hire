@@ -7,12 +7,12 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 export default function Roles() {
   const say = useToast(); const [roles, setRoles] = useState([]); const [editing, setEditing] = useState(null); const [jd, setJd] = useState(""); const [slotsFor, setSlotsFor] = useState(null); const [managers, setManagers] = useState([]); const [templates, setTemplates] = useState([]); const [picking, setPicking] = useState(false);
   useEffect(() => { api("/roles/defaults/templates").then(setTemplates).catch(() => {}); }, []);
-  async function fromTemplate(id) { try { const t = await api(`/roles/defaults/templates/${id}`); const { id: _id, ...rest } = t; setEditing({ ...rest, campus: "Noida", justification: "", ijp_until: "", manager_id: "" }); setPicking(false); } catch (e) { say(e.message); } }
+  async function fromTemplate(id) { try { const t = await api(`/roles/defaults/templates/${id}`); const { id: _id, ...rest } = t; setEditing({ ...rest, campus: "Wishtown, Sec 131, Noida", justification: "", ijp_until: "", manager_id: "" }); setPicking(false); } catch (e) { say(e.message); } }
   useEffect(() => { api("/users/managers").then(setManagers).catch(() => {}); }, []);
   const load = () => api("/roles").then(setRoles);
   useEffect(() => { load(); }, []);
-  const blank = { title: "", department: "Primary", campus: "Noida", openings: 1, salary_band: "", manager_id: "", grade: "", subject: "", justification: "", reporting_manager: "", ijp_until: "", written_prompt: "", rubrics: null, criteria: [{ id: uid(), text: "", must: true }], questions: [""], rubric: [{ key: "planning", label: "Lesson planning and clarity of objectives" }, { key: "engagement", label: "Student engagement and questioning" }, { key: "management", label: "Classroom management and warmth" }, { key: "subject", label: "Subject knowledge and accuracy" }, { key: "reflection", label: "Reflection and openness in the debrief" }] };
-  async function save(r) { try { const body = { ...r, criteria: r.criteria.filter((c) => c.text.trim()), questions: r.questions.filter((q) => q.trim()) }; await api(r.id ? `/roles/${r.id}` : "/roles", { method: r.id ? "PUT" : "POST", body }); setEditing(null); load(); say("Role saved"); } catch (e) { say(e.message); } }
+  const blank = { title: "", department: "Primary", campus: "Wishtown, Sec 131, Noida", openings: 1, salary_band: "", manager_id: "", grade: "", subject: "", justification: "", reporting_manager: "", ijp_until: "", written_prompt: "", rubrics: null, criteria: [{ id: uid(), text: "", must: true }], questions: [""], rubric: [{ key: "planning", label: "Lesson planning and clarity of objectives" }, { key: "engagement", label: "Student engagement and questioning" }, { key: "management", label: "Classroom management and warmth" }, { key: "subject", label: "Subject knowledge and accuracy" }, { key: "reflection", label: "Reflection and openness in the debrief" }] };
+  async function save(r) { try { const body = { ...r, criteria: (r.criteria || []).filter((c) => (c.text || "").trim()), questions: (r.questions || []).map((q) => (typeof q === "string" ? { text: q, assesses: "Classroom thinking" } : q)).filter((q) => (q.text || "").trim()) }; await api(r.id ? `/roles/${r.id}` : "/roles", { method: r.id ? "PUT" : "POST", body }); setEditing(null); load(); say("Role saved"); } catch (e) { say(e.message); } }
   if (editing) return <RoleForm role={editing} managers={managers} onSave={save} onCancel={() => setEditing(null)} />;
   if (slotsFor) return <Slots role={slotsFor} onBack={() => { setSlotsFor(null); load(); }} say={say} />;
   return (
@@ -65,7 +65,7 @@ function RoleForm({ role, managers, onSave, onCancel }) {
       <div className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: "0 10px" }}>
         <Field label="Title"><input value={r.title} onChange={(e) => setR({ ...r, title: e.target.value })} /></Field>
         <Field label="Department"><input value={r.department} onChange={(e) => setR({ ...r, department: e.target.value })} /></Field>
-        <Field label="Campus"><input value={r.campus} onChange={(e) => setR({ ...r, campus: e.target.value })} /></Field>
+        <Field label="Campus"><select value={r.campus} onChange={(e) => setR({ ...r, campus: e.target.value })}>{[...new Set([...(status?.campuses || ["Suncity, NH9, Ghaziabad", "Wishtown, Sec 131, Noida"]), r.campus].filter(Boolean))].map((c) => <option key={c}>{c}</option>)}</select></Field>
         <Field label="Openings"><input type="number" min={1} value={r.openings} onChange={(e) => setR({ ...r, openings: +e.target.value })} /></Field>
       </div>
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px" }}>
@@ -118,7 +118,7 @@ function RoleForm({ role, managers, onSave, onCancel }) {
 }
 
 function Slots({ role, onBack, say }) {
-  const [slots, setSlots] = useState([]); const [f, setF] = useState({ date: "", times: "10:00, 11:00, 12:00", minutes: 45, stage: "Leadership interview", location: "Healthy Planet School, Noida" });
+  const [slots, setSlots] = useState([]); const [f, setF] = useState({ date: "", times: "10:00, 11:00, 12:00", minutes: 45, stage: "Leadership interview", location: `Healthy Planet School, ${role.campus}` });
   const load = () => api(`/roles/${role.id}/slots`).then(setSlots);
   useEffect(() => { load(); }, []);
   return <div className="card" style={{ maxWidth: 720 }}>

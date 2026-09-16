@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
   recommendation TEXT, submitted_at TEXT, created_at TEXT DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS slots (
   id INTEGER PRIMARY KEY, role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE, stage TEXT DEFAULT 'Leadership interview',
-  starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, location TEXT DEFAULT 'Healthy Planet School, Noida',
+  starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, location TEXT DEFAULT 'Healthy Planet School',
   candidate_id INTEGER REFERENCES candidates(id) ON DELETE SET NULL, booked_at TEXT, created_at TEXT DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY, user_id INTEGER, user_name TEXT, method TEXT, path TEXT, summary TEXT, created_at TEXT DEFAULT (datetime('now')));
@@ -231,6 +231,7 @@ export const normQuestions = (qs) => (qs || []).map((q) => (typeof q === "string
 export const rowRole = (r) => r && { ...r, criteria: j(r.criteria, []), questions: normQuestions(j(r.questions, [])), scenarios: j(r.scenarios) || [], languages: j(r.languages) || ["en"], rubric: j(r.rubric) || DEFAULT_RUBRIC, rubrics: { ...DEFAULT_RUBRICS, ...(j(r.rubric) ? { "Demo lesson": j(r.rubric) } : {}), ...(j(r.rubrics) || {}) }, written_prompt: r.written_prompt || DEFAULT_WRITTEN_PROMPT };
 export const rowCandidateFull = (r) => r && { ...rowCandidate(r), screening_call: j(r.screening_call), final_review: j(r.final_review), hr_discussion: j(r.hr_discussion) };
 export const rowRule = (r) => r && { ...r, conditions: j(r.conditions, {}), actions: j(r.actions, []) };
+export const CAMPUSES = ["Suncity, NH9, Ghaziabad", "Wishtown, Sec 131, Noida"];
 export const LANGUAGES = { en: "English", hi: "हिन्दी", pa: "ਪੰਜਾਬੀ", bn: "বাংলা", mr: "मराठी", gu: "ગુજરાતી", ta: "தமிழ்", te: "తెలుగు", kn: "ಕನ್ನಡ", ml: "മലയാളം", ur: "اردو" };
 export const userCampuses = (u) => { const c = j(u?.campuses); return Array.isArray(c) && c.length ? c : null; }; // null = all campuses
 export const rowEvaluation = (r) => r && { ...r, scores: j(r.scores) };

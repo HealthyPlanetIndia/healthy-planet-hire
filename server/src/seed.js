@@ -10,7 +10,7 @@ if (!db.prepare("SELECT 1 FROM users LIMIT 1").get()) {
 }
 if (!db.prepare("SELECT 1 FROM roles LIMIT 1").get()) {
   const ins = db.prepare("INSERT INTO roles (title, department, campus, openings, criteria, questions) VALUES (?,?,?,?,?,?)");
-  const r1 = ins.run("Primary Teacher (Grades 3 to 5)", "Primary", "Noida", 2, JSON.stringify([
+  const r1 = ins.run("Primary Teacher (Grades 3 to 5)", "Primary", "Wishtown, Sec 131, Noida", 2, JSON.stringify([
     { id: "c1", text: "B.Ed or equivalent teaching qualification", must: true },
     { id: "c2", text: "3+ years teaching in a primary classroom", must: true },
     { id: "c3", text: "Fluent spoken and written English", must: true },
@@ -33,7 +33,7 @@ if (!db.prepare("SELECT 1 FROM roles LIMIT 1").get()) {
   faq.run("How long does the AI interview take?", "About 15 minutes. You can do it on your phone, at any time before the deadline in your message, and you can choose to type or speak.");
   faq.run("When will I hear back?", "We aim to update every candidate within 5 working days of each step. If you have not heard from us in that time, reply here and a team member will check.");
   faq.run("What are the school timings for staff?", "Teaching staff are on campus from 7:45 am to 3:15 pm, Monday to Friday, with occasional Saturday events.");
-  ins.run("Basketball Coach", "Sports", "Noida", 1, JSON.stringify([
+  ins.run("Basketball Coach", "Sports", "Suncity, NH9, Ghaziabad", 1, JSON.stringify([
     { id: "c6", text: "Played or coached at state level or above", must: true },
     { id: "c7", text: "Experience coaching children aged 8 to 16", must: true },
     { id: "c8", text: "First aid certification", must: false }]),

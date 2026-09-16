@@ -279,7 +279,7 @@ candidates.get("/:id/letters", requireStaff, (req, res) => res.json(db.prepare("
 candidates.post("/:id/letters", requireStaff, (req, res) => {
   const c = getC(req.params.id), role = getR(c.role_id), t = getTemplates();
   const type = req.body.type === "appointment" ? "appointment" : "offer";
-  const body = req.body.body || fill(t[type === "appointment" ? "appointment_letter" : "offer_letter"], c, role, { salary: c.salary || "{salary}", join_date: c.join_date ? new Date(c.join_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "{join_date}", campus: role?.campus || "Noida", date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }), department: role?.department || "", reporting_manager: role?.reporting_manager || "{reporting_manager}", ref_no: "{ref_no}" });
+  const body = req.body.body || fill(t[type === "appointment" ? "appointment_letter" : "offer_letter"], c, role, { salary: c.salary || "{salary}", join_date: c.join_date ? new Date(c.join_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "{join_date}", campus: role?.campus || "Wishtown, Sec 131, Noida", date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }), department: role?.department || "", reporting_manager: role?.reporting_manager || "{reporting_manager}", ref_no: "{ref_no}" });
   const ref = nextLetterRef(type);
   const r = db.prepare("INSERT INTO letters (candidate_id, type, ref_no, body, created_by) VALUES (?,?,?,?,?)").run(c.id, type, ref, body.replace("{ref_no}", ref), req.user.id);
   logEvent(c.id, "letter_drafted", `${type} ${ref}`); audit(req, `drafted ${type} letter ${ref}`);
@@ -376,7 +376,7 @@ candidates.get("/:id/calendar-link", (req, res) => {
 // Offer letter from template
 candidates.get("/:id/offer-letter", requireStaff, (req, res) => {
   const c = getC(req.params.id), role = getR(c.role_id), t = getTemplates();
-  const body = fill(t.offer_letter, c, role, { salary: c.salary || "{salary}", join_date: c.join_date ? new Date(c.join_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "{join_date}", campus: role?.campus || "Noida", date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }), department: role?.department || "" });
+  const body = fill(t.offer_letter, c, role, { salary: c.salary || "{salary}", join_date: c.join_date ? new Date(c.join_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "{join_date}", campus: role?.campus || "Wishtown, Sec 131, Noida", date: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }), department: role?.department || "" });
   res.json({ body });
 });
 candidates.post("/:id/offer-letter/send", requireStaff, async (req, res, next) => {
