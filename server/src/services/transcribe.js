@@ -22,9 +22,9 @@ export async function transcribeBuffer(buf, mime, lang = "en") {
 // candidate's answer for that index already exists, into the transcript (keeping what the browser heard).
 export async function transcribeClip(interviewId, index) {
   const iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(interviewId)); if (!iv) return null;
-  const clip = iv.clips.find((c) => c.index === index); if (!clip) return null;
-  const buf = readClip(clip.file);
-  const res = await transcribeBuffer(buf, clip.mime, iv.language);
+  const clip = iv.clips.find((c) => c.index === index); if (!clip || (!clip.file && !clip.audio_file)) return null;
+  const buf = readClip(clip.audio_file || clip.file); // the small audio track when we have it
+  const res = await transcribeBuffer(buf, clip.audio_file ? clip.audio_mime : clip.mime, iv.language);
   const clips = iv.clips.map((c) => (c.index === index ? { ...c, transcript: res.text, confidence: res.confidence, languages: res.languages } : c));
   db.prepare("UPDATE interviews SET clips=? WHERE id=?").run(JSON.stringify(clips), iv.id);
   applyToTranscript(iv.id, index, res.text);
@@ -43,6 +43,6 @@ export function applyToTranscript(interviewId, index, text) {
 export async function transcribeAllPending(interviewId) {
   if (!transcribeEnabled()) return 0;
   const iv = rowInterview(db.prepare("SELECT * FROM interviews WHERE id=?").get(interviewId)); let n = 0;
-  for (const c of iv.clips) if (c.transcript == null) { try { await transcribeClip(iv.id, c.index); n++; } catch (e) { logEvent(iv.candidate_id, "transcribe_failed", `clip ${c.index}: ${e.message}`); } }
+  for (const c of iv.clips) if (c.transcript == null && (c.file || c.audio_file)) { try { await transcribeClip(iv.id, c.index); n++; } catch (e) { logEvent(iv.candidate_id, "transcribe_failed", `clip ${c.index}: ${e.message}`); } }
   return n;
 }

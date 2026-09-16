@@ -334,3 +334,27 @@ test("role templates are complete and a role created from one draws correctly", 
   const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
   const full = (await req(`/candidates/${c.id}`)).data.interviews[0]; assert.equal(full.questions.length, 4); assert.ok(full.scenario.id.startsWith("m"));
 });
+
+
+test("audio track is stored first and video merges into the same answer", async () => {
+  const c = (await req("/candidates", { method: "POST", body: { name: "Audio First", role_id: 1 } })).data;
+  const iv = (await req(`/candidates/${c.id}/interviews`, { method: "POST", body: {} })).data;
+  const a = await fetch(`${BASE}/public/interview/${iv.token}/clip/0?seconds=30&kind=audio`, { method: "POST", headers: { "Content-Type": "audio/webm" }, body: Buffer.alloc(2000, 3) }); assert.equal(a.status, 200);
+  let full = (await req(`/candidates/${c.id}`)).data.interviews[0]; assert.equal(full.clips.length, 1); assert.ok(full.clips[0].audio_file); assert.ok(!full.clips[0].file);
+  const links = (await req(`/candidates/${c.id}/interviews/${full.id}/clips`)).data.clips; assert.equal(links[0].has_video, false);
+  const v = await fetch(`${BASE}/public/interview/${iv.token}/clip/0?seconds=30&kind=video`, { method: "POST", headers: { "Content-Type": "video/webm" }, body: Buffer.alloc(9000, 4) }); assert.equal(v.status, 200);
+  full = (await req(`/candidates/${c.id}`)).data.interviews[0]; assert.equal(full.clips.length, 1); assert.ok(full.clips[0].file && full.clips[0].audio_file);
+  await req(`/candidates/${c.id}/purge`, { method: "DELETE" });
+  assert.equal(fs.readdirSync(path.join(dir, "files", "clips")).filter((f) => f.startsWith(iv.token)).length, 0);
+});
+
+test("careers-page application is tied to the chosen open role and the reply names it", async () => {
+  const roles = (await req("/public/roles", { auth: false })).data; const target = roles[roles.length - 1];
+  const fd = new FormData(); fd.append("role_id", String(target.id)); fd.append("name", "Apply Check"); fd.append("phone", "9811122233"); fd.append("resume", new Blob(["Apply Check. B.Ed 2019. Four years teaching Grades 2 to 4 at a CBSE school in Ghaziabad."], { type: "text/plain" }), "cv.txt");
+  const r = await (await fetch(BASE + "/public/apply", { method: "POST", body: fd })).json();
+  assert.equal(r.role, target.title); assert.equal(r.campus, target.campus);
+  const c = (await req("/candidates?q=Apply%20Check")).data[0]; assert.equal(c.role_id, target.id); assert.equal(c.role_title, target.title);
+  assert.match((await req("/candidates?q=Apply%20Check")).data[0].resume_text, /B\.Ed/);
+  const closed = await req("/public/apply", { method: "POST", body: { role_id: 999999, name: "Nobody", resume_text: "x" }, auth: false }); assert.equal(closed.status, 400);
+  const noFile = await req("/public/apply", { method: "POST", body: { role_id: target.id, name: "No File" }, auth: false }); assert.equal(noFile.status, 400); assert.match(noFile.data.error, /resume/i);
+});

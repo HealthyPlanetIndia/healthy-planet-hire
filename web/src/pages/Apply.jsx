@@ -5,7 +5,7 @@ import { PhoneInput, phoneValid } from "../components/ui.jsx";
 
 // Public application page. Link it from the school website, or embed it: <iframe src="https://yourdomain/apply" />
 export default function Apply() {
-  const { roleId } = useParams(); const nav = useNavigate(); const [roles, setRoles] = useState([]); const [campus, setCampus] = useState(""); const [f, setF] = useState({ role_id: roleId || "", name: "", phone: "", email: "", resume_text: "", location: "", current_employer: "", expected_salary: "", notice_period: "", referrer: "", internal: false }); const [done, setDone] = useState(false); const [err, setErr] = useState("");
+  const { roleId } = useParams(); const nav = useNavigate(); const [roles, setRoles] = useState([]); const [campus, setCampus] = useState(""); const [f, setF] = useState({ role_id: roleId || "", name: "", phone: "", email: "", resume_text: "", location: "", current_employer: "", expected_salary: "", notice_period: "", referrer: "", internal: false }); const [done, setDone] = useState(false); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [file, setFile] = useState(null);
   useEffect(() => { api("/public/roles", { auth: false }).then(setRoles); }, []);
   useEffect(() => { if (roleId) setF((x) => ({ ...x, role_id: roleId })); }, [roleId]);
   const role = roles.find((r) => String(r.id) === String(f.role_id));
@@ -38,7 +38,7 @@ export default function Apply() {
       <div className="muted" style={{ fontSize: 12, marginTop: 24 }}>Applications are used for recruitment only, kept for up to 12 months, and deleted on request. hr@healthyplanetschool.com</div>
     </div>
   </div>;
-  if (done) return <Wrap><div className="card"><b>Thank you, {f.name.split(" ")[0]}.</b><p>Your application for {role?.title} at the {role?.campus} campus has reached us. We review every application against the same criteria and will message you on WhatsApp or email about next steps.</p><Link to="/apply" className="link" style={{ fontSize: 13 }}>Back to all positions</Link></div></Wrap>;
+  if (done) return <Wrap><div className="card"><b>Thank you, {f.name.split(" ")[0]}.</b><p>Your application for <b>{done.role || role?.title}</b> at <b>{done.campus || role?.campus}</b> has reached us. We review every application against the same criteria and will message you on WhatsApp or email about next steps.</p><Link to="/apply" className="link" style={{ fontSize: 13 }}>Back to all positions</Link></div></Wrap>;
   if (roles.length && !role) return <Wrap><div className="card">This position is no longer open. <Link to="/apply">See current openings</Link>.</div></Wrap>;
   return <Wrap>
     <Link to="/apply" className="link" style={{ fontSize: 13, display: "inline-block", marginBottom: 10 }}>← All positions</Link>
@@ -59,10 +59,10 @@ export default function Apply() {
       </div>
       <label className="field">Referred by a Healthy Planet or NWS staff member? Their name.<input value={f.referrer} onChange={(e) => setF({ ...f, referrer: e.target.value })} /></label>
       <label style={{ fontSize: 13, display: "block", marginBottom: 10 }}><input type="checkbox" style={{ width: "auto" }} checked={f.internal} onChange={(e) => setF({ ...f, internal: e.target.checked })} /> I currently work at Healthy Planet School or Nehru World School (internal application)</label>
-      <label className="field">Paste your CV, or a summary of your qualifications and experience<textarea style={{ minHeight: 140 }} value={f.resume_text} onChange={(e) => setF({ ...f, resume_text: e.target.value })} /></label>
+      <label className="field">Upload your resume (PDF or Word)<input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files[0] || null)} />{file && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{file.name} · {Math.round(file.size / 1024)} KB</div>}</label>
       <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>By applying you consent to Healthy Planet School using this information for recruitment only, keeping it for up to 12 months, restricting access to authorised staff and taking reasonable measures to protect it. Write to hr@healthyplanetschool.com to access, correct or delete your data.</div>
       {err && <div style={{ color: "#B0463C", fontSize: 13, marginBottom: 8 }}>{err}</div>}
-      <button className="primary" style={{ width: "100%" }} disabled={!f.name || !f.role_id || (!f.phone && !f.email) || !phoneValid(f.phone)} onClick={async () => { try { await api("/public/apply", { method: "POST", body: f, auth: false }); setDone(true); } catch (e) { setErr(e.message); } }}>Send application</button>
+      <button className="primary" style={{ width: "100%" }} disabled={busy || !f.name || !f.role_id || (!f.phone && !f.email) || !phoneValid(f.phone) || !file} onClick={async () => { setBusy(true); try { const fd = new FormData(); Object.entries(f).forEach(([k, v]) => { if (k !== "resume_text") fd.append(k, v); }); fd.append("resume", file); const r = await api("/public/apply", { method: "POST", form: fd, auth: false }); setDone(r); } catch (e) { setErr(e.message); } setBusy(false); }}>{busy ? "Sending..." : `Send application for ${role?.title || "this role"}, ${role?.campus || ""}`}</button>
     </div>
   </Wrap>;
 }

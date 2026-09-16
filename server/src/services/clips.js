@@ -15,17 +15,21 @@ function key() {
 }
 export const MAX_CLIP_BYTES = 40 * 1024 * 1024;
 
-export function saveClip(token, index, buf, meta = {}) {
+// kind "video" (the recording recruiters watch) or "audio" (small, uploaded first, used for transcription).
+// Both land on the same clip record for that answer index.
+export function saveClip(token, index, buf, meta = {}, kind = "video") {
   const iv = crypto.randomBytes(12), c = crypto.createCipheriv("aes-256-gcm", key(), iv);
   const enc = Buffer.concat([c.update(buf), c.final()]), tag = c.getAuthTag();
-  const file = `${token}_${index}.enc`;
+  const file = `${token}_${index}${kind === "audio" ? "_a" : ""}.enc`;
   fs.writeFileSync(path.join(CLIP_DIR, file), Buffer.concat([iv, tag, enc]));
   const row = db.prepare("SELECT id, clips, candidate_id FROM interviews WHERE token=?").get(token);
-  const clips = JSON.parse(row.clips || "[]").filter((c) => c.index !== index);
-  clips.push({ index, file, bytes: buf.length, seconds: meta.seconds || null, mime: meta.mime || "video/webm", at: Date.now() });
-  clips.sort((a, b) => a.index - b.index);
-  db.prepare("UPDATE interviews SET clips=? WHERE id=?").run(JSON.stringify(clips), row.id);
-  return clips;
+  const clips = JSON.parse(row.clips || "[]");
+  const existing = clips.find((c) => c.index === index) || { index, at: Date.now() };
+  if (kind === "audio") Object.assign(existing, { audio_file: file, audio_mime: meta.mime || "audio/webm", audio_bytes: buf.length, seconds: meta.seconds || existing.seconds || null });
+  else Object.assign(existing, { file, mime: meta.mime || "video/webm", bytes: buf.length, seconds: meta.seconds || existing.seconds || null });
+  const next = clips.filter((c) => c.index !== index).concat([existing]).sort((a, b) => a.index - b.index);
+  db.prepare("UPDATE interviews SET clips=? WHERE id=?").run(JSON.stringify(next), row.id);
+  return next;
 }
 export function readClip(file) {
   const raw = fs.readFileSync(path.join(CLIP_DIR, path.basename(file)));
@@ -37,7 +41,7 @@ export function deleteClips(interviewIds) {
   if (!interviewIds.length) return 0; let n = 0;
   for (const id of interviewIds) {
     const row = db.prepare("SELECT clips FROM interviews WHERE id=?").get(id); if (!row) continue;
-    for (const c of JSON.parse(row.clips || "[]")) { try { fs.unlinkSync(path.join(CLIP_DIR, path.basename(c.file))); n++; } catch {} }
+    for (const c of JSON.parse(row.clips || "[]")) { for (const f of [c.file, c.audio_file]) if (f) { try { fs.unlinkSync(path.join(CLIP_DIR, path.basename(f))); n++; } catch {} } }
     db.prepare("UPDATE interviews SET clips='[]' WHERE id=?").run(id);
   }
   return n;

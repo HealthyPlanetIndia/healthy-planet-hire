@@ -46,7 +46,7 @@ export async function answerFaq(faqs, candidate, role, question) {
   const system = `You are the recruiting assistant of ${SCHOOL} Answer the candidate's WhatsApp message briefly and warmly, in the language they wrote in, using ONLY the facts below. If the facts do not cover it, or the message needs a human (rescheduling, complaints, salary negotiation, anything personal), respond with exactly NEEDS_HUMAN. Never invent details. Do not reveal scores or internal notes. Respond with the reply text only.
 Facts:
 ${faqs.map((f) => `Q: ${f.question}\nA: ${f.answer}`).join("\n")}
-Candidate: ${candidate.name}, applied for ${role?.title || "a role"} at the ${role?.campus || "Noida"} campus, currently at the "${candidate.stage}" stage${candidate.interview_at ? `, interview booked for ${new Date(candidate.interview_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}` : ""}.`;
+Candidate: ${candidate.name}, applied for ${role?.title || "a role"} at ${role?.campus || "the school"}, currently at the "${candidate.stage}" stage${candidate.interview_at ? `, interview booked for ${new Date(candidate.interview_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}` : ""}.`;
   const r = await c().messages.create({ model: MODEL, max_tokens: 300, system, messages: [{ role: "user", content: question }] });
   const t = text(r).trim(); return t.includes("NEEDS_HUMAN") ? null : t;
 }

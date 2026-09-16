@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { VERSION } from "../version.js";
 import express from "express";
+import multer from "multer";
+import { extractText } from "../services/resume.js";
+const applyUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 import { saveClip, MAX_CLIP_BYTES, readClip, verifyClipToken } from "../services/clips.js";
 import { transcribeEnabled, transcribeClip, transcribeAllPending } from "../services/transcribe.js";
 import { ttsEnabled, speak } from "../services/tts.js";
@@ -23,7 +26,7 @@ const load = (token) => {
 pub.get("/interview/:token", (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).json({ error: "This interview link is not valid" });
   const expired = new Date(x.i.expires_at) < new Date() && x.i.status !== "completed";
-  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: Object.fromEntries(Object.entries(LANGUAGES).filter(([k]) => x.r.languages.includes(k))), mode: x.i.mode || "video", tts: ttsEnabled(), retake_used: x.i.retakes.length > 0, thinking_seconds: 3, candidate_email: !!x.c.email, allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: !!x.i.scenario, total: (x.i.questions?.length || x.r.questions.length) + (x.i.scenario ? (x.i.scenario.type === "situation" ? 2 : 3) : 0), answer_seconds: x.r.answer_seconds || 90, minutes: 15, proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
+  res.json({ candidate: x.c.name.split(" ")[0], role: x.r.title, status: expired ? "expired" : x.i.status, language: x.i.language, languages: Object.fromEntries(Object.entries(LANGUAGES).filter(([k]) => x.r.languages.includes(k))), mode: x.i.mode || "video", tts: ttsEnabled(), retake_used: x.i.retakes.length > 0, thinking_seconds: 3, candidate_email: !!x.c.email, allow_text: process.env.ALLOW_TEXT_INTERVIEWS === "true", interactive: !!x.i.scenario, total: (x.i.questions?.length || Math.min(x.r.questions.length, x.r.max_questions || 4)) + (x.i.scenario ? (x.i.scenario.type === "situation" ? 2 : 3) : 0), answer_seconds: x.r.answer_seconds || 90, minutes: 15, proctor: !!x.i.proctor, transcript: x.i.transcript.filter((m) => m.role !== "user" || !m.content.startsWith("(")).map(({ role, content }) => ({ role, content })) });
 });
 
 pub.post("/interview/:token/start", async (req, res, next) => {
@@ -52,7 +55,7 @@ pub.post("/interview/:token/answer", async (req, res, next) => {
     let served = x.i.clips.find((c) => c.index === idx)?.transcript;
     if (served == null && transcribeEnabled() && x.i.clips.some((c) => c.index === idx)) {
       // the clip is uploaded but not yet transcribed: wait up to 25 s for the accurate text rather than let Maya react to the phone's guess
-      const t0 = Date.now(); while (Date.now() - t0 < 25000) { await new Promise((r) => setTimeout(r, 1500)); served = load(x.i.token).i.clips.find((c) => c.index === idx)?.transcript; if (served != null) break; }
+      const t0 = Date.now(); while (Date.now() - t0 < 12000) { await new Promise((r) => setTimeout(r, 1000)); served = load(x.i.token).i.clips.find((c) => c.index === idx)?.transcript; if (served != null) break; }
     }
     const content = served && served.length > 2 ? served : answer;
     const isRetake = x.i.retakes.some((r) => r.index === idx);
@@ -94,10 +97,12 @@ pub.post("/interview/:token/clip/:index", express.raw({ type: () => true, limit:
   if (x.i.status === "completed" && Date.now() - new Date(x.i.completed_at + "Z").getTime() > 600000) return res.status(400).json({ error: "Interview closed" });
   if (!Buffer.isBuffer(req.body) || req.body.length < 1000) { logEvent(x.c.id, "clip_rejected", `answer ${+req.params.index + 1}: ${Buffer.isBuffer(req.body) ? req.body.length + " bytes" : "no body"}, type ${req.headers["content-type"]}`); return res.status(400).json({ error: "Empty recording" }); }
   const mime = String(req.headers["content-type"] || "video/webm").split(";")[0].trim();
-  const clips = saveClip(x.i.token, +req.params.index, req.body, { seconds: +req.query.seconds || null, mime: /^video\//.test(mime) ? mime : "video/webm" });
+  const kind = req.query.kind === "audio" ? "audio" : "video";
+  const clips = saveClip(x.i.token, +req.params.index, req.body, { seconds: +req.query.seconds || null, mime: kind === "audio" ? (/^audio\//.test(mime) ? mime : "audio/webm") : (/^video\//.test(mime) ? mime : "video/webm") }, kind);
   res.json({ ok: true, clips: clips.length });
-  // Transcribe in the background; the browser's own transcript is used until this lands
-  if (transcribeEnabled()) transcribeClip(x.i.id, +req.params.index).catch((e) => logEvent(x.c.id, "transcribe_failed", `clip ${req.params.index}: ${e.message}`));
+  // Transcribe from the first thing that arrives (normally the small audio track); the browser's own text is only a fallback
+  const clip = clips.find((c) => c.index === +req.params.index);
+  if (transcribeEnabled() && clip && clip.transcript == null && (kind === "audio" || !clip.audio_file)) transcribeClip(x.i.id, +req.params.index).catch((e) => logEvent(x.c.id, "transcribe_failed", `clip ${req.params.index}: ${e.message}`));
 });
 // Maya's voice for a line of the interview (falls back to the browser voice when the service is not configured)
 pub.post("/interview/:token/speak", async (req, res) => {
@@ -150,7 +155,7 @@ pub.post("/interview/:token/transcript/:index/note", (req, res) => {
 pub.get("/clip/:t", (req, res) => {
   const v = verifyClipToken(req.params.t); if (!v) return res.status(403).send("Link expired");
   const iv = db.prepare("SELECT clips FROM interviews WHERE id=?").get(v.ivId); const c = iv && JSON.parse(iv.clips || "[]").find((k) => k.index === v.index);
-  if (!c) return res.status(404).send("No clip");
+  if (!c || !c.file) return res.status(404).send("No video for this answer");
   const buf = readClip(c.file); res.setHeader("Content-Type", c.mime || "video/webm"); res.setHeader("Cache-Control", "private, no-store"); res.send(buf);
 });
 
@@ -300,12 +305,22 @@ pub.get("/jobs.xml", (req, res) => {
 pub.get("/version", (req, res) => res.json({ version: VERSION, features: ["video-clips", "report-v2", "briefing-checklist", "retake", "thinking-time"] }));
 
 // Careers-page form can post straight here
-pub.post("/apply", (req, res) => {
-  const { role_id, name, phone, email, resume_text, location = "", current_employer = "", expected_salary = "", notice_period = "", referrer = "", internal = false } = req.body;
+pub.post("/apply", applyUpload.single("resume"), async (req, res, next) => { try {
+  const { role_id, name, phone, email, location = "", current_employer = "", expected_salary = "", notice_period = "", referrer = "" } = req.body;
+  const internal = req.body.internal === true || req.body.internal === "true";
   if (!name || !role_id) return res.status(400).json({ error: "Name and role are required" });
+  if (!req.file && !req.body.resume_text) return res.status(400).json({ error: "Please attach your resume (PDF or Word)" });
+  let resume_text = req.body.resume_text || "";
+  if (req.file) { try { resume_text = (await extractText(req.file)).trim(); } catch (e) { return res.status(400).json({ error: "We could not read that file. Please upload a PDF or Word document, not a scan or photo." }); } if (resume_text.length < 40) return res.status(400).json({ error: "That file has no readable text. Please upload a PDF or Word document, not a scan or photo." }); }
+  const role = rowRole(db.prepare("SELECT * FROM roles WHERE id=? AND status='open'").get(role_id));
+  if (!role) return res.status(400).json({ error: "This position is no longer open. Please choose another from the careers page." });
   const source = internal ? "Internal (IJP)" : referrer ? "Referral" : "Careers page";
-  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, booking_token, location, current_employer, expected_salary, notice_period, referrer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(role_id, name, canonPhone(phone), (email || "").trim().toLowerCase(), source, resume_text || "", Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer);
-  logEvent(r.lastInsertRowid, "created", "via careers page");
-  res.status(201).json({ ok: true });
-});
+  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, resume_file, booking_token, location, current_employer, expected_salary, notice_period, referrer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").run(role_id, name, canonPhone(phone), (email || "").trim().toLowerCase(), source, resume_text, req.file?.originalname || null, Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer);
+  logEvent(r.lastInsertRowid, "created", `via careers page for ${role.title} (${role.campus})`);
+  res.status(201).json({ ok: true, role: role.title, campus: role.campus });
+  // Acknowledge immediately, naming the role and campus, so a mistaken application is caught by the applicant at once
+  const cand = rowCandidate(db.prepare("SELECT * FROM candidates WHERE id=?").get(r.lastInsertRowid));
+  const body = fill(getTemplates().Applied, cand, role);
+  (async () => { try { const { waEnabled } = await import("../services/whatsapp.js"); const { mailEnabled } = await import("../services/email.js"); if (cand.phone && waEnabled()) await deliver(cand, "whatsapp", body, `Your application: ${role.title}`); else if (cand.email && mailEnabled()) await deliver(cand, "email", body, `Your application: ${role.title}`); } catch (e) { logEvent(cand.id, "ack_failed", e.message); } })();
+} catch (e) { next(e); } });
 pub.get("/roles", (req, res) => res.json(db.prepare("SELECT id, title, department, campus, description, salary_band, grade, subject FROM roles WHERE status = 'open' AND (ijp_until IS NULL OR ijp_until < date('now'))").all()));

@@ -30,7 +30,7 @@ export default function CandidateInterview() {
   const [phase, setPhase] = useState("idle"); // idle | asking | thinking | answering | uploading | failed | retakeOffer
   const [countdown, setCountdown] = useState(0); const [seconds, setSeconds] = useState(0); const [busy, setBusy] = useState(false); const [emailed, setEmailed] = useState(false);
   const [retakeUsed, setRetakeUsed] = useState(false); const [isRetake, setIsRetake] = useState(false); const [pendingBlob, setPendingBlob] = useState(null);
-  const videoRef = useRef(null), streamRef = useRef(null), recRef = useRef(null), chunksRef = useRef([]), srRef = useRef(null), finalRef = useRef(""), interimRef = useRef(""), timerRef = useRef(null), startedAtRef = useRef(0), phaseRef = useRef("idle"), audioRef = useRef(null), spokenForRef = useRef("");
+  const videoRef = useRef(null), streamRef = useRef(null), recRef = useRef(null), chunksRef = useRef([]), audRecRef = useRef(null), audChunksRef = useRef([]), bgUploads = useRef(0), srRef = useRef(null), finalRef = useRef(""), interimRef = useRef(""), timerRef = useRef(null), startedAtRef = useRef(0), phaseRef = useRef("idle"), audioRef = useRef(null), spokenForRef = useRef("");
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   const t = STR[lang] || STR.en, checklist = CHECK[lang] || CHECK.en;
   const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -126,7 +126,9 @@ export default function CandidateInterview() {
     timerRef.current = setInterval(() => { const sec = Math.round((Date.now() - startedAtRef.current) / 1000); setSeconds(sec); if (sec >= cap && phaseRef.current === "answering") finishAnswer(); }, 500);
     if (streamRef.current && window.MediaRecorder) {
       const mime = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || "";
-      try { const rec = new MediaRecorder(streamRef.current, { mimeType: mime || undefined, videoBitsPerSecond: 400000, audioBitsPerSecond: 48000 }); rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data); rec.start(1000); recRef.current = rec; } catch { recRef.current = null; }
+      try { const rec = new MediaRecorder(streamRef.current, { mimeType: mime || undefined, videoBitsPerSecond: 300000, audioBitsPerSecond: 32000 }); rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data); rec.start(1000); recRef.current = rec; } catch { recRef.current = null; }
+      // a second, audio-only recording: small enough to upload in seconds, used for transcription so nobody waits for the video
+      try { const aStream = new MediaStream(streamRef.current.getAudioTracks()); const amime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((m) => MediaRecorder.isTypeSupported(m)) || ""; const arec = new MediaRecorder(aStream, { mimeType: amime || undefined, audioBitsPerSecond: 32000 }); audChunksRef.current = []; arec.ondataavailable = (e) => e.data.size && audChunksRef.current.push(e.data); arec.start(1000); audRecRef.current = arec; } catch { audRecRef.current = null; }
     }
     if (SR) { // browser transcript is only a fallback for the server's transcription; the candidate never sees it
       const sr = new SR(); sr.lang = BCP[lang] || "en-IN"; sr.interimResults = true; sr.continuous = true; srRef.current = sr;
@@ -138,22 +140,24 @@ export default function CandidateInterview() {
     clearInterval(timerRef.current); setPhase("uploading");
     // Let speech recognition confirm the last few words before we stop it (up to 1.5 s), then fold in any unconfirmed text
     if (srRef.current) { const sr = srRef.current; await new Promise((res) => { let done = false; const fin = () => { if (!done) { done = true; res(); } }; sr.onend = fin; try { sr.stop(); } catch { fin(); } setTimeout(fin, 1500); }); if (interimRef.current) { finalRef.current = (finalRef.current + " " + interimRef.current).trim(); interimRef.current = ""; } }
-    let blob = null;
+    let blob = null, audio = null;
     if (recRef.current && recRef.current.state !== "inactive") { await new Promise((res) => { recRef.current.onstop = res; recRef.current.stop(); }); blob = new Blob(chunksRef.current, { type: recRef.current.mimeType || "video/webm" }); }
-    setPendingBlob(blob); await submit(blob, false);
+    if (audRecRef.current && audRecRef.current.state !== "inactive") { await new Promise((res) => { audRecRef.current.onstop = res; audRecRef.current.stop(); }); audio = new Blob(audChunksRef.current, { type: audRecRef.current.mimeType || "audio/webm" }); }
+    setPendingBlob({ blob, audio }); await submit({ blob, audio }, false);
   }
-  async function submit(blob, skipClip) {
+  const post = (idx, body, kind, secs, timeoutMs) => { const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), timeoutMs); return fetch(`/api/public/interview/${token}/clip/${idx}?seconds=${secs}&kind=${kind}`, { method: "POST", headers: { "Content-Type": (body.type || (kind === "audio" ? "audio/webm" : "video/webm")).split(";")[0] }, body, signal: ctrl.signal }).finally(() => clearTimeout(to)); };
+  async function submit({ blob, audio }, skipClip) {
     const answerIndex = transcript.filter((m) => m.role === "user").length;
     const secs = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
     const text = (finalRef.current || "").trim() || (lang === "hi" ? "(उत्तर वीडियो में रिकॉर्ड किया गया)" : "(answer recorded on video; see the recording)");
     setPhase("uploading");
     try {
-      if (blob && blob.size > 1000 && !skipClip) {
-        const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 45000);
-        const plainType = (blob.type || "video/webm").split(";")[0]; // codecs suffix confused the server before
-        const up = await fetch(`/api/public/interview/${token}/clip/${answerIndex}?seconds=${secs}`, { method: "POST", headers: { "Content-Type": plainType }, body: blob, signal: ctrl.signal });
-        clearTimeout(to); if (!up.ok) throw new Error(`upload ${up.status}`);
-      } else if (skipClip) signal("clip_failed", `answer ${answerIndex + 1}: continued without video after upload failure`);
+      if (!skipClip) {
+        // 1. the small audio track first, so transcription can start now (a few seconds even on a weak connection)
+        if (audio && audio.size > 1000) { const up = await post(answerIndex, audio, "audio", secs, 30000); if (!up.ok) throw new Error(`upload ${up.status}`); }
+        // 2. the video in the background with retries; the interview moves on without waiting for it
+        if (blob && blob.size > 1000) { bgUploads.current++; (async () => { for (let attempt = 0; attempt < 3; attempt++) { try { const up = await post(answerIndex, blob, "video", secs, 120000); if (up.ok) return; } catch {} await new Promise((r) => setTimeout(r, 3000 * (attempt + 1))); } signal("clip_failed", `answer ${answerIndex + 1}: video upload failed after 3 attempts (audio kept)`); })().finally(() => { bgUploads.current--; }); }
+      } else signal("clip_failed", `answer ${answerIndex + 1}: continued without recording after upload failure`);
       const r = await api(`/public/interview/${token}/answer`, { method: "POST", body: { answer: text } });
       setTr(r.transcript); setPendingBlob(null); setIsRetake(false);
       if (r.ended) { setEnded(true); setPhase("idle"); } else setPhase(retakeUsed ? "idle" : "retakeOffer");
@@ -175,7 +179,7 @@ export default function CandidateInterview() {
   const firstName = info.candidate;
 
   // ---------- completion ----------
-  if (ended) return <Center><div className="card" style={{ maxWidth: 460, textAlign: "center", padding: 28 }}><div style={{ fontSize: 40, color: "var(--green)" }}>✓</div><div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0" }}>{t.finished}</div><p className="muted" style={{ lineHeight: 1.5 }}>{t.finishedNote}</p></div></Center>;
+  if (ended) return <Center><div className="card" style={{ maxWidth: 460, textAlign: "center", padding: 28 }}><div style={{ fontSize: 40, color: "var(--green)" }}>✓</div><div style={{ fontSize: 20, fontWeight: 700, margin: "6px 0" }}>{t.finished}</div><p className="muted" style={{ lineHeight: 1.5 }}>{t.finishedNote}</p>{bgUploads.current > 0 && <p className="muted" style={{ fontSize: 12 }}>{lang === "hi" ? "आपके वीडियो अभी सहेजे जा रहे हैं; कृपया एक मिनट तक यह पेज खुला रखें।" : "Your videos are still being saved; please keep this page open for a minute."}</p>}</div></Center>;
 
   // ---------- resume after a dropped connection: camera must come back first ----------
   if (running && camState !== "on") return <Center><div className="card" style={{ maxWidth: 420 }}><b>Healthy Planet School · {t.title}</b><p>{t.resume}</p>{camState === "denied" && <p style={{ color: "#B0463C" }}>{t.need}</p>}<button className="warm" style={{ width: "100%" }} onClick={() => { signal("resumed"); startCamera(); }}>{t.resumeBtn}</button></div></Center>;
