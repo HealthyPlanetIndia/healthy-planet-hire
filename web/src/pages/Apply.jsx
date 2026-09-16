@@ -10,8 +10,8 @@ export default function Apply() {
   useEffect(() => { if (roleId) setF((x) => ({ ...x, role_id: roleId })); }, [roleId]);
   const role = roles.find((r) => String(r.id) === String(f.role_id));
   const campuses = [...new Set(roles.map((r) => r.campus).filter(Boolean))];
-  const colour = (c) => /suncity|ghaziabad/i.test(c || "") ? "var(--blue)" : /wishtown|noida/i.test(c || "") ? "var(--green)" : "var(--yellow)";
-  const light = (c) => /suncity|ghaziabad|wishtown|noida/i.test(c || "");
+  const colour = (c) => /sun ?city|ghaziabad/i.test(c || "") ? "var(--blue)" : /wishtown|noida/i.test(c || "") ? "var(--green)" : "var(--yellow)";
+  const light = (c) => /sun ?city|ghaziabad|wishtown|noida/i.test(c || "");
 
   // Listing: one tile per open role, campus shown clearly
   if (!roleId) return <div style={{ minHeight: "100vh", background: "var(--paper)" }}>

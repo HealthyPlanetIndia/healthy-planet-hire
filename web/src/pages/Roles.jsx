@@ -65,7 +65,7 @@ function RoleForm({ role, managers, onSave, onCancel }) {
       <div className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: "0 10px" }}>
         <Field label="Title"><input value={r.title} onChange={(e) => setR({ ...r, title: e.target.value })} /></Field>
         <Field label="Department"><input value={r.department} onChange={(e) => setR({ ...r, department: e.target.value })} /></Field>
-        <Field label="Campus"><select value={r.campus} onChange={(e) => setR({ ...r, campus: e.target.value })}>{[...new Set([...(status?.campuses || ["Suncity, NH9, Ghaziabad", "Wishtown, Sec 131, Noida"]), r.campus].filter(Boolean))].map((c) => <option key={c}>{c}</option>)}</select></Field>
+        <Field label="Campus"><select value={r.campus} onChange={(e) => setR({ ...r, campus: e.target.value })}>{(status?.campuses || ["Sun City, NH24, Ghaziabad", "Wishtown, Sec 131, Noida"]).map((c) => <option key={c}>{c}</option>)}</select></Field>
         <Field label="Openings"><input type="number" min={1} value={r.openings} onChange={(e) => setR({ ...r, openings: +e.target.value })} /></Field>
       </div>
       <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px" }}>

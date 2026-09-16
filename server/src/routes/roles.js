@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, rowRole, ACTIVE_STAGES, audit, DEFAULT_RUBRIC, userCampuses, normQuestions, DEFAULT_SCENARIOS } from "../db.js";
+import { db, rowRole, ACTIVE_STAGES, audit, DEFAULT_RUBRIC, userCampuses, normQuestions, DEFAULT_SCENARIOS, canonCampus } from "../db.js";
 import { ROLE_TEMPLATES } from "../templates.js";
 import { draftJobDescription } from "../ai.js";
 import { requireStaff, requireAdmin } from "../auth.js";
@@ -24,7 +24,7 @@ roles.post("/", (req, res) => {
   if (!justification?.trim() && req.user.role !== "admin") return res.status(400).json({ error: "A justification is required on the manpower requisition" });
   const status = req.user.role === "admin" ? "open" : "requested";
   const r = db.prepare("INSERT INTO roles (title, department, campus, openings, criteria, questions, rubric, rubrics, manager_id, salary_band, description, interview_mode, scenario, grade, subject, justification, requested_by, approved_by, approved_at, reporting_manager, ijp_until, written_prompt, status, languages, brief, scenarios, max_questions, answer_seconds) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .run(title.trim(), department, campus, openings, JSON.stringify(criteria), JSON.stringify(normQuestions(questions)), JSON.stringify(rubric), rubrics ? JSON.stringify(rubrics) : null, manager_id || (req.user.role === "manager" ? req.user.id : null), salary_band, description, interview_mode, scenario, grade, subject, justification, req.user.id, status === "open" ? req.user.id : null, status === "open" ? new Date().toISOString() : null, reporting_manager, ijp_until, written_prompt, status, JSON.stringify(languages.length ? languages : ["en"]), brief, JSON.stringify(scenarios), +max_questions || 4, +answer_seconds || 90);
+    .run(title.trim(), department, canonCampus(campus), openings, JSON.stringify(criteria), JSON.stringify(normQuestions(questions)), JSON.stringify(rubric), rubrics ? JSON.stringify(rubrics) : null, manager_id || (req.user.role === "manager" ? req.user.id : null), salary_band, description, interview_mode, scenario, grade, subject, justification, req.user.id, status === "open" ? req.user.id : null, status === "open" ? new Date().toISOString() : null, reporting_manager, ijp_until, written_prompt, status, JSON.stringify(languages.length ? languages : ["en"]), brief, JSON.stringify(scenarios), +max_questions || 4, +answer_seconds || 90);
   audit(req, `${status === "open" ? "created" : "requested"} role ${title}`); res.status(201).json(withCounts(get(r.lastInsertRowid)));
 });
 roles.post("/:id/approve", requireAdmin, (req, res) => {
@@ -40,7 +40,7 @@ roles.put("/:id", (req, res) => {
   const b = { ...rowRole(cur), ...req.body };
   if (req.body.status === "open" && cur.status !== "open" && req.user.role !== "admin") return res.status(403).json({ error: "Only the Director can approve a requisition" });
   db.prepare("UPDATE roles SET title=?, department=?, campus=?, openings=?, status=?, criteria=?, questions=?, rubric=?, rubrics=?, manager_id=?, salary_band=?, description=?, interview_mode=?, scenario=?, grade=?, subject=?, justification=?, reporting_manager=?, ijp_until=?, written_prompt=?, languages=?, brief=?, scenarios=?, max_questions=?, answer_seconds=? WHERE id=?")
-    .run(b.title, b.department, b.campus, b.openings, b.status, JSON.stringify(b.criteria), JSON.stringify(normQuestions(b.questions)), JSON.stringify(b.rubrics?.["Demo lesson"] || b.rubric), JSON.stringify(b.rubrics || {}), b.manager_id || null, b.salary_band || "", b.description || "", b.interview_mode || "standard", b.scenario || "", b.grade || "", b.subject || "", b.justification || "", b.reporting_manager || "", b.ijp_until || null, req.body.written_prompt ?? cur.written_prompt, JSON.stringify(b.languages?.length ? b.languages : ["en"]), b.brief || "", JSON.stringify(b.scenarios || []), +b.max_questions || 4, +b.answer_seconds || 90, req.params.id);
+    .run(b.title, b.department, canonCampus(b.campus), b.openings, b.status, JSON.stringify(b.criteria), JSON.stringify(normQuestions(b.questions)), JSON.stringify(b.rubrics?.["Demo lesson"] || b.rubric), JSON.stringify(b.rubrics || {}), b.manager_id || null, b.salary_band || "", b.description || "", b.interview_mode || "standard", b.scenario || "", b.grade || "", b.subject || "", b.justification || "", b.reporting_manager || "", b.ijp_until || null, req.body.written_prompt ?? cur.written_prompt, JSON.stringify(b.languages?.length ? b.languages : ["en"]), b.brief || "", JSON.stringify(b.scenarios || []), +b.max_questions || 4, +b.answer_seconds || 90, req.params.id);
   audit(req, `updated role ${req.params.id}`); res.json(withCounts(get(req.params.id)));
 });
 roles.get("/defaults/scenarios", (req, res) => res.json(DEFAULT_SCENARIOS));

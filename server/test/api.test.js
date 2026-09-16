@@ -175,6 +175,7 @@ test("FAQ bot without AI flags the candidate for a human; inbox lists them", asy
 
 test("campus scoping limits a recruiter to their campus but keeps the talent pool shared", async () => {
   const sc = (await req("/roles", { method: "POST", body: { title: "Suncity Librarian", campus: "Suncity", criteria: [], questions: ["Why libraries?"] } })).data;
+  assert.equal(sc.campus, "Sun City, NH24, Ghaziabad"); // older names are tidied to the canonical campus
   await req("/candidates", { method: "POST", body: { name: "Suncity Person", role_id: sc.id } });
   const pooled = (await req("/candidates", { method: "POST", body: { name: "Pooled Noida", role_id: 1 } })).data;
   await req(`/candidates/${pooled.id}`, { method: "PUT", body: { stage: "Talent pool" } });
@@ -183,7 +184,7 @@ test("campus scoping limits a recruiter to their campus but keeps the talent poo
   await req(`/users/${u.id}/campuses`, { method: "PUT", body: { campuses: ["Suncity"] } });
   const tok = (await req("/auth/login", { method: "POST", body: { email: "s@hps.test", password: "password123" }, auth: false })).data.token;
   const saved = token; token = tok;
-  const roles = (await req("/roles")).data; assert.ok(roles.every((r) => r.campus === "Suncity"));
+  const roles = (await req("/roles")).data; assert.ok(roles.every((r) => r.campus === "Sun City, NH24, Ghaziabad"));
   const cands = (await req("/candidates")).data;
   assert.ok(cands.some((c) => c.name === "Suncity Person")); assert.ok(cands.some((c) => c.name === "Pooled Noida")); assert.ok(!cands.some((c) => c.name === "Share Me"));
   token = saved;

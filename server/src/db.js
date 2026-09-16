@@ -231,7 +231,13 @@ export const normQuestions = (qs) => (qs || []).map((q) => (typeof q === "string
 export const rowRole = (r) => r && { ...r, criteria: j(r.criteria, []), questions: normQuestions(j(r.questions, [])), scenarios: j(r.scenarios) || [], languages: j(r.languages) || ["en"], rubric: j(r.rubric) || DEFAULT_RUBRIC, rubrics: { ...DEFAULT_RUBRICS, ...(j(r.rubric) ? { "Demo lesson": j(r.rubric) } : {}), ...(j(r.rubrics) || {}) }, written_prompt: r.written_prompt || DEFAULT_WRITTEN_PROMPT };
 export const rowCandidateFull = (r) => r && { ...rowCandidate(r), screening_call: j(r.screening_call), final_review: j(r.final_review), hr_discussion: j(r.hr_discussion) };
 export const rowRule = (r) => r && { ...r, conditions: j(r.conditions, {}), actions: j(r.actions, []) };
-export const CAMPUSES = ["Suncity, NH9, Ghaziabad", "Wishtown, Sec 131, Noida"];
+export const CAMPUSES = ["Sun City, NH24, Ghaziabad", "Wishtown, Sec 131, Noida"];
+// Tidy older campus names on every start so the dropdowns show only the two campuses
+export function canonCampus(c) { const v = String(c || "").trim(); if (CAMPUSES.includes(v)) return v; if (/sun ?city|ghaziabad|nh ?24|nh ?9/i.test(v)) return CAMPUSES[0]; if (/noida|wishtown|131/i.test(v)) return CAMPUSES[1]; return v ? CAMPUSES[1] : ""; }
+{
+  for (const r of db.prepare("SELECT id, campus FROM roles").all()) { const c = canonCampus(r.campus); if (c !== r.campus) db.prepare("UPDATE roles SET campus=? WHERE id=?").run(c, r.id); }
+  for (const u of db.prepare("SELECT id, campuses FROM users WHERE campuses IS NOT NULL").all()) { try { const list = JSON.parse(u.campuses); const fixed = [...new Set(list.map(canonCampus).filter(Boolean))]; if (JSON.stringify(fixed) !== u.campuses) db.prepare("UPDATE users SET campuses=? WHERE id=?").run(fixed.length ? JSON.stringify(fixed) : null, u.id); } catch {} }
+}
 export const LANGUAGES = { en: "English", hi: "हिन्दी", pa: "ਪੰਜਾਬੀ", bn: "বাংলা", mr: "मराठी", gu: "ગુજરાતી", ta: "தமிழ்", te: "తెలుగు", kn: "ಕನ್ನಡ", ml: "മലയാളം", ur: "اردو" };
 export const userCampuses = (u) => { const c = j(u?.campuses); return Array.isArray(c) && c.length ? c : null; }; // null = all campuses
 export const rowEvaluation = (r) => r && { ...r, scores: j(r.scores) };
