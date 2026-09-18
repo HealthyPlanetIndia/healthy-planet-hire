@@ -18,7 +18,7 @@ export async function speak(text, language = "en") {
   const key = `${v.id}|${s.speed}|${s.stability}|${language}|${text}`;
   if (cache.has(key)) return cache.get(key);
   const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${v.id}?output_format=mp3_22050_32`, { method: "POST", headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ text, model_id: "eleven_multilingual_v2", voice_settings: { stability: s.stability, similarity_boost: 0.8, style: s.style, use_speaker_boost: true, speed: s.speed } }) });
-  if (!r.ok) throw new Error(`Voice service error ${r.status}`);
+  if (!r.ok) { let why = `status ${r.status}`; try { const d = await r.json(); why = d?.detail?.message || d?.detail?.status || d?.detail || why; } catch {} throw new Error(r.status === 401 ? "voice key rejected" : r.status === 429 || /quota|limit/i.test(String(why)) ? `voice quota exhausted (${why})` : `voice service ${why}`); }
   const buf = Buffer.from(await r.arrayBuffer());
   if (cache.size > 200) cache.delete(cache.keys().next().value);
   cache.set(key, buf); return buf;

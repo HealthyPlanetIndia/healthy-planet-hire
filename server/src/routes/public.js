@@ -109,7 +109,8 @@ pub.post("/interview/:token/speak", async (req, res) => {
   const x = load(req.params.token); if (!x) return res.status(404).end();
   if (!ttsEnabled()) return res.status(204).end();
   const line = String(req.body.text || "").slice(0, 1200); if (!line) return res.status(400).end();
-  try { const buf = await speak(line, x.i.language); res.setHeader("Content-Type", "audio/mpeg"); res.setHeader("Cache-Control", "private, max-age=3600"); res.send(buf); } catch (e) { res.status(502).json({ error: e.message }); }
+  try { const buf = await speak(line, x.i.language); res.setHeader("Content-Type", "audio/mpeg"); res.setHeader("Cache-Control", "private, max-age=3600"); res.send(buf); }
+  catch (e) { logEvent(x.c.id, "voice_fallback", `${e.message}; candidate heard the device voice`); db.prepare("UPDATE candidates SET needs_human=1 WHERE id=?").run(x.c.id); res.status(502).json({ error: e.message }); }
 });
 
 // One re-take per interview: rolls the transcript back to before the last answer, keeps the first recording, and labels the second

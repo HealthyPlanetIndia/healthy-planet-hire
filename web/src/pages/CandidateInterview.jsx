@@ -85,7 +85,7 @@ export default function CandidateInterview() {
     if (!window.speechSynthesis) return fin();
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text); u.lang = BCP[lang] || "en-IN"; u.rate = 0.92; u.pitch = 1;
-    const voices = window.speechSynthesis.getVoices(); const v = voices.find((x) => x.lang === u.lang && /female|woman|neerja|heera|veena/i.test(x.name)) || voices.find((x) => x.lang === u.lang) || voices.find((x) => x.lang.startsWith(lang)); if (v) u.voice = v;
+    const voices = window.speechSynthesis.getVoices(); const v = voices.find((x) => x.lang === u.lang && /neerja|heera|veena|natural|premium|enhanced|google/i.test(x.name)) || voices.find((x) => x.lang === u.lang && /female|woman/i.test(x.name)) || voices.find((x) => x.lang === u.lang) || voices.find((x) => x.lang.startsWith(lang)); if (v) u.voice = v;
     u.onend = fin; u.onerror = fin; window.speechSynthesis.speak(u); setTimeout(fin, 8000 + text.length * 90);
   });
   const lastQ = [...transcript].reverse().find((m) => m.role === "assistant")?.content || "";

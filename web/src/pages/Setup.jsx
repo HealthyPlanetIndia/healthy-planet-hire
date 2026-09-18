@@ -36,8 +36,9 @@ export default function Setup() {
         <button disabled={!!busy || !email} onClick={() => test("email", email)}>{busy === "email" ? "Sending..." : "Send test email"}</button>
         <button disabled={!!busy || !to} onClick={() => test("sms", to)}>{busy === "sms" ? "Sending..." : "Send test SMS"}</button>
         <button disabled={!!busy} onClick={() => test("transcribe")}>{busy === "transcribe" ? "Testing..." : "Test transcription"}</button>
+        <button disabled={!!busy} onClick={() => test("voice")}>{busy === "voice" ? "Testing..." : "Test voice"}</button>
       </div>
-      {["ai", "whatsapp", "email", "sms", "transcribe"].map((k) => <Result key={k} k={k} />)}
+      {["ai", "whatsapp", "email", "sms", "transcribe", "voice"].map((k) => <Result key={k} k={k} />)}
     </div>
 
     <div className="card">

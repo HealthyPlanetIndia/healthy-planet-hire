@@ -9,7 +9,7 @@ import { mailEnabled, sendEmail } from "../services/email.js";
 import { smsEnabled, sendSms } from "../services/sms.js";
 import { videoEnabled } from "../services/video.js";
 import { transcribeEnabled, transcribeBuffer } from "../services/transcribe.js";
-import { ttsEnabled } from "../services/tts.js";
+import { ttsEnabled, speak } from "../services/tts.js";
 
 export const setup = Router();
 setup.use(requireAdmin);
@@ -47,6 +47,7 @@ setup.post("/test/:what", async (req, res) => {
     else if (w === "email") { if (!mailEnabled()) throw new Error("SMTP not set"); await sendEmail(to, "Healthy Planet Hire test", "Email sending is connected."); out = { ok: true, message: `Sent to ${to}. Check the inbox (and spam).` }; }
     else if (w === "sms") { if (!smsEnabled()) throw new Error("SMS not set"); await sendSms(to, "Healthy Planet Hire: SMS is connected."); out = { ok: true, message: `Sent to ${to}.` }; }
     else if (w === "transcribe") { if (!transcribeEnabled()) throw new Error("DEEPGRAM_API_KEY not set"); const r = await fetch("https://api.deepgram.com/v1/projects", { headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` } }); if (!r.ok) throw new Error("Deepgram rejected the key"); out = { ok: true, message: "Deepgram key accepted. Spoken answers will be transcribed on the server with Hindi-English support." }; }
+    else if (w === "voice") { if (!ttsEnabled()) throw new Error("ELEVENLABS_API_KEY not set; candidates hear their device's built-in voice"); const buf = await speak("Hello, I'm Maya. Thank you for joining today. When you're ready, I'll ask the first question."); out = { ok: true, message: `Natural voice working (${Math.round(buf.length / 1024)} KB sample generated). If candidates still hear a robotic voice, check the ElevenLabs usage page for quota.` }; }
     else if (w === "webhook") { const r = await fetch(`${publicUrl()}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(process.env.WA_VERIFY_TOKEN || "healthyplanet-verify")}&hub.challenge=hello`); out = { ok: (await r.text()) === "hello", message: r.ok ? "Your server answers Meta's verification correctly." : `Server returned ${r.status}. Is PUBLIC_URL right?` }; }
     else throw new Error("Unknown test");
   } catch (e) { out = { ok: false, message: e.message }; }
