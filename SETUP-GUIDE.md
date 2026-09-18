@@ -1,4 +1,4 @@
-# Healthy Planet Hire: setting it up yourself
+# Healthy Planet Recruitment: setting it up yourself
 
 You do not need to know Node, Docker or any programming. Current software version: 2026-09-15.14. You will use three websites and fill in
 a few forms. Budget about two hours the first evening, then a few days of waiting on Meta for
@@ -13,7 +13,7 @@ Do the steps in order. Each one tells you what you should see when it worked.
 1. Go to **console.anthropic.com** and create an account with your school email.
 2. Click **Billing** in the left menu and add a card. Put ₹2,000 (about $25) of credit on it; that
    covers a few hundred candidates.
-3. Click **API Keys**, then **Create Key**. Name it "Healthy Planet Hire". Copy the key (it starts
+3. Click **API Keys**, then **Create Key**. Name it "Healthy Planet Recruitment". Copy the key (it starts
    with `sk-ant-`) into a note on your phone or computer. You will not be able to see it again.
 
 **You should have:** one key starting `sk-ant-`.
@@ -88,7 +88,7 @@ Storage, web address, security secret and sample data are all handled. Skip to S
    `healthy-planet-hire-production.up.railway.app`. Copy it.
 7. Back in **Variables**, change `PUBLIC_URL` to `https://` followed by that address, for example
    `https://healthy-planet-hire-production.up.railway.app`. Update. Railway redeploys (1 to 2 minutes).
-8. Open your address in a browser. You should see the **Healthy Planet Hire** sign-in page.
+8. Open your address in a browser. You should see the **Healthy Planet Recruitment** sign-in page.
    Sign in with the `ADMIN_EMAIL` and `ADMIN_PASSWORD` you set.
 
 **You should have:** the app open in your browser, signed in, with a sample role and one sample
@@ -154,7 +154,7 @@ clicks instead of automation.
    complete **Business verification** (Security Centre). You will upload the school's registration
    document. This is the slow part: 2 to 10 days.
 2. Go to **developers.facebook.com**, click **My Apps → Create App**, choose **Business**, name it
-   "Healthy Planet Hire", and link it to your Business Portfolio.
+   "Healthy Planet Recruitment", and link it to your Business Portfolio.
 3. In the app dashboard, find **WhatsApp** and click **Set up**.
 4. Under **API Setup**, click **Add phone number**. Use a school landline or a new SIM. It must not
    be a number already used in the WhatsApp or WhatsApp Business app. Verify it by SMS or call.
@@ -184,7 +184,7 @@ your number when they apply (put this on the apply page and in job ads), which o
 
 Meta's dashboard is the most confusing part of this whole guide. If you install **Claude in Chrome**,
 you can open developers.facebook.com and say: "Help me set up the WhatsApp Cloud API for my app
-Healthy Planet Hire: add a phone number, then show me the Phone number ID, and walk me to creating a
+Healthy Planet Recruitment: add a phone number, then show me the Phone number ID, and walk me to creating a
 permanent system-user token with whatsapp_business_messaging and whatsapp_business_management." It
 navigates and points; you type passwords and approve each step. Same trick works for Google app
 passwords in Step 6.
@@ -194,7 +194,7 @@ passwords in Step 6.
 If the school uses Google Workspace:
 
 1. In your Google account, turn on 2-Step Verification, then go to **myaccount.google.com/apppasswords**
-   and create an app password named "Healthy Planet Hire". Copy the 16-character password.
+   and create an app password named "Healthy Planet Recruitment". Copy the 16-character password.
 2. In Railway **Variables**, add:
    ```
    SMTP_HOST=smtp.gmail.com

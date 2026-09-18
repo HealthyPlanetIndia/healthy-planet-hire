@@ -11,10 +11,13 @@ export default function Setup() {
   const test = async (what, target) => { setBusy(what); const r = await api(`/setup/test/${what}`, { method: "POST", body: { to: target } }).catch((e) => ({ ok: false, message: e.message })); setOut((o) => ({ ...o, [what]: r })); setBusy(""); };
   if (!d) return <div className="muted">Loading...</div>;
   const required = d.items.filter((i) => !i.optional), done = required.filter((i) => i.ok).length;
+  const here = window.location.origin, configured = (d.apply_url || "").replace(/\/apply$/, "");
+  const mismatch = configured && here !== configured;
   const Result = ({ k }) => out[k] ? <div style={{ fontSize: 13, color: out[k].ok ? "var(--green)" : "#B0463C", marginTop: 6 }}>{out[k].ok ? "✓ " : "✗ "}{out[k].message}</div> : null;
   return <div className="grid" style={{ maxWidth: 820 }}>
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}><b style={{ fontSize: 16 }}>Setup</b><span className="muted">{done} of {required.length} required steps done</span></div>
+      {mismatch && <div style={{ background: "#FBE5E2", borderRadius: 8, padding: "8px 10px", fontSize: 13, margin: "8px 0" }}><b>Your links are being built with the wrong address.</b> You are using the app at <code>{here}</code>, but PUBLIC_URL is set to <code>{configured}</code>, so interview and booking links sent to candidates use that older address. Fix: Render → your service → Environment → PUBLIC_URL → <code>{here}</code> → Save, wait a minute, then Re-check here.</div>}
       <div style={{ height: 8, background: "var(--soft)", borderRadius: 4, margin: "8px 0 12px" }}><div style={{ width: `${(done / required.length) * 100}%`, height: 8, background: "var(--green)", borderRadius: 4 }} /></div>
       {d.items.map((i) => <div key={i.key} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: "1px solid var(--line)", fontSize: 13 }}>
         <span style={{ width: 20, color: i.ok ? "var(--green)" : i.optional ? "var(--mute)" : "var(--coral)", fontWeight: 700 }}>{i.ok ? "✓" : i.optional ? "○" : "!"}</span>

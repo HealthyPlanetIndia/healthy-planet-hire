@@ -36,7 +36,7 @@ app.post("/api/auth/login", async (req, res) => {
 });
 app.post("/api/auth/forgot", async (req, res) => {
   const token = createResetToken(req.body.email || "");
-  if (token && mailEnabled()) { try { await sendEmail(req.body.email, "Reset your Healthy Planet Hire password", `Open this link within one hour to set a new password:\n${process.env.PUBLIC_URL}/reset/${token}`); } catch (e) { console.error(e.message); } }
+  if (token && mailEnabled()) { try { await sendEmail(req.body.email, "Reset your Healthy Planet Recruitment password", `Open this link within one hour to set a new password:\n${process.env.PUBLIC_URL}/reset/${token}`); } catch (e) { console.error(e.message); } }
   else if (token) console.log(`Password reset link (email not configured): ${process.env.PUBLIC_URL}/reset/${token}`);
   res.json({ ok: true }); // always the same answer, so emails can't be enumerated
 });
@@ -64,4 +64,4 @@ ensureSeed();
 seedRules();
 scheduleFollowups();
 scheduleHousekeeping();
-app.listen(process.env.PORT || 4000, () => console.log(`Healthy Planet Hire API on :${process.env.PORT || 4000}`));
+app.listen(process.env.PORT || 4000, () => console.log(`Healthy Planet Recruitment API on :${process.env.PORT || 4000}`));

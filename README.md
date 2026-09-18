@@ -1,4 +1,4 @@
-# Healthy Planet Hire
+# Healthy Planet Recruitment
 
 Recruiting software for Healthy Planet School. Turns applications into decision-ready shortlists:
 structured roles, AI resume screening with cited evidence, a pipeline board, AI first-round
