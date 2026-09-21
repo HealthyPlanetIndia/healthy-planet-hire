@@ -16,7 +16,7 @@ export default function Dashboard() {
     <div className="grid">
       {(reqs.length > 0 || n("Final review") > 0) && <div className="card" style={{ borderColor: "var(--blue)" }}><b>Waiting for the Director</b><div className="muted" style={{ fontSize: 13 }}>{reqs.length > 0 && <div><Link to="/roles">{reqs.length} manpower requisition{reqs.length > 1 ? "s" : ""}</Link> to approve or reject.</div>}{n("Final review") > 0 && <div><Link to="/pipeline">{n("Final review")} candidate{n("Final review") > 1 ? "s" : ""}</Link> at Final review awaiting your decision.</div>}</div></div>}
       {todo.length > 0 && <Link to="/setup" className="card" style={{ textDecoration: "none", color: "inherit", borderColor: "var(--yellow)", background: "#FFFBEF" }}><b>Finish setting up</b><div className="muted" style={{ fontSize: 13 }}>{todo.length} required step{todo.length > 1 ? "s" : ""} left: {todo.map((i) => i.label).join(", ")}. Open Setup to test connections and fix them.</div></Link>}
-      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
         {[["Active candidates", active], ["New this week", d.newThisWeek], ["Awaiting screening", n("Applied")], ["AI interviews completed", done], ["Avg days to offer", d.avgDaysToOffer ?? "none yet"], ["In talent pool", n("Talent pool")]].map(([l, v]) => <div key={l} className="card"><div className="stat">{v}</div><div className="muted" style={{ fontSize: 12 }}>{l}</div></div>)}
       </div>
       <RolesBoard d={d} />

@@ -8,8 +8,8 @@ export default function Login() {
     try { const r = await api("/auth/login", { method: "POST", body: f }); localStorage.setItem("hph_token", r.token); localStorage.setItem("hph_user", JSON.stringify(r.user)); location.href = "/"; } catch (e) { setErr(e.message); } setBusy(false); }
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16 }}>
-      <form onSubmit={go} className="card" style={{ width: "min(380px, 100%)" }}>
-        <div className="row" style={{ marginBottom: 16 }}><span style={{ width: 40, height: 40, borderRadius: 12, background: "var(--yellow)", display: "grid", placeItems: "center", fontWeight: 700 }}>HP</span><div><div style={{ fontWeight: 700, fontSize: 18 }}>Healthy Planet Recruitment</div><div className="muted" style={{ fontSize: 12 }}>Sign in to the recruiting team</div></div></div>
+      <form onSubmit={go} className="card" style={{ width: "min(380px, 100%)", padding: 28 }}>
+        <div style={{ textAlign: "center", marginBottom: 22 }}><span style={{ display: "inline-grid", width: 52, height: 52, borderRadius: 14, background: "var(--green)", color: "#fff", placeItems: "center", fontFamily: "var(--font-brand)", fontWeight: 700, fontSize: 18 }}>HP</span><div style={{ fontFamily: "var(--font-brand)", fontWeight: 700, fontSize: 20, marginTop: 12, letterSpacing: "-0.01em" }}>Healthy Planet Recruitment</div><div className="muted" style={{ fontSize: 13 }}>Sign in to continue</div></div>
         <Field label="Email"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} autoFocus /></Field>
         <Field label="Password"><input type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
         {err && <div style={{ color: "#B0463C", fontSize: 13, marginBottom: 8 }}>{err}</div>}

@@ -17,7 +17,7 @@ export default function Apply() {
   if (!roleId) return <div style={{ minHeight: "100vh", background: "var(--paper)" }}>
     <div style={{ background: "var(--green)", color: "#fff", padding: "28px 16px" }}>
       <div style={{ maxWidth: 960, margin: "0 auto" }} className="row">
-        <span style={{ width: 44, height: 44, borderRadius: 12, background: "var(--yellow)", color: "#000", fontWeight: 700, display: "grid", placeItems: "center", fontSize: 18 }}>HP</span>
+        <span style={{ width: 44, height: 44, borderRadius: 12, background: "#fff", color: "var(--green)", fontFamily: "var(--font-brand)", fontWeight: 700, display: "grid", placeItems: "center", fontSize: 17 }}>HP</span>
         <div><div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>Work with us</div><div style={{ opacity: .85, fontSize: 13 }}>Healthy Planet School · open positions across our campuses</div></div>
       </div>
     </div>
