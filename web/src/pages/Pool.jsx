@@ -13,7 +13,7 @@ export default function Pool() {
   return (
     <div className="grid">
       <input placeholder="Search by name, skill or previous role, e.g. Montessori, Hindi, IB" value={q} onChange={(e) => setQ(e.target.value)} />
-      {list.length === 0 && <div className="card muted">The talent pool is empty. Move promising candidates you cannot hire right now into "Talent pool" and they stay searchable here.</div>}
+      {list.length === 0 && <div className="card muted">The talent pool is empty. Candidates you move to "Talent pool", and general applications from the careers page, are searchable here and can be reactivated for any role.</div>}
       {list.map((c) => <div key={c.id} className="card row">
         <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontWeight: 500 }}>{c.name} {c.screening && <Score v={c.screening.overall} />}</div><div className="muted" style={{ fontSize: 12 }}>Applied for {c.role_title} · pooled {daysSince(c.stage_at)} days ago</div></div>
         <select style={{ width: "auto" }} defaultValue="" onChange={(e) => e.target.value && reactivate(c, e.target.value)}><option value="">Reactivate for...</option>{roles.filter((r) => r.status === "open").map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}</select>

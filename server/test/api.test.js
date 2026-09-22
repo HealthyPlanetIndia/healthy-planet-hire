@@ -358,3 +358,13 @@ test("careers-page application is tied to the chosen open role and the reply nam
   const closed = await req("/public/apply", { method: "POST", body: { role_id: 999999, name: "Nobody", resume_text: "x" }, auth: false }); assert.equal(closed.status, 400);
   const noFile = await req("/public/apply", { method: "POST", body: { role_id: target.id, name: "No File" }, auth: false }); assert.equal(noFile.status, 400); assert.match(noFile.data.error, /resume/i);
 });
+
+test("one application can cover several roles, and a general application lands in the talent pool", async () => {
+  const roles = (await req("/public/roles", { auth: false })).data; const a = roles[0], b = roles[1];
+  const fd = new FormData(); fd.append("role_id", String(a.id)); fd.append("role_ids", JSON.stringify([String(b.id)])); fd.append("name", "Multi Applicant"); fd.append("phone", "9812345678"); fd.append("resume", new Blob(["Multi Applicant. B.Ed. Five years of primary teaching in Noida schools."], { type: "text/plain" }), "cv.txt");
+  const r = await (await fetch(BASE + "/public/apply", { method: "POST", body: fd })).json(); assert.equal(r.count, 2);
+  const cands = (await req("/candidates?q=Multi%20Applicant")).data; assert.equal(cands.length, 2); assert.deepEqual(new Set(cands.map((c) => c.role_id)), new Set([a.id, b.id])); assert.ok(cands.every((c) => c.notes.includes("Also applied for")));
+  const g = new FormData(); g.append("general", "true"); g.append("name", "Pool Applicant"); g.append("email", "pool@x.in"); g.append("resume", new Blob(["Pool Applicant. Librarian with ten years in school libraries."], { type: "text/plain" }), "cv.txt");
+  const gr = await (await fetch(BASE + "/public/apply", { method: "POST", body: g })).json(); assert.equal(gr.general, true);
+  const pooled = (await req("/candidates?stage=Talent%20pool&q=Pool%20Applicant")).data; assert.equal(pooled.length, 1); assert.equal(pooled[0].role_id, null);
+});

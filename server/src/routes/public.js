@@ -307,21 +307,34 @@ pub.get("/version", (req, res) => res.json({ version: VERSION, features: ["video
 
 // Careers-page form can post straight here
 pub.post("/apply", applyUpload.single("resume"), async (req, res, next) => { try {
-  const { role_id, name, phone, email, location = "", current_employer = "", expected_salary = "", notice_period = "", referrer = "" } = req.body;
+  const { name, phone, email, location = "", current_employer = "", expected_salary = "", notice_period = "", referrer = "" } = req.body;
   const internal = req.body.internal === true || req.body.internal === "true";
-  if (!name || !role_id) return res.status(400).json({ error: "Name and role are required" });
+  const general = req.body.general === true || req.body.general === "true";
+  // role_ids may arrive as a JSON array, repeated fields, or a single role_id
+  let ids = []; try { ids = JSON.parse(req.body.role_ids || "[]"); } catch { ids = [].concat(req.body.role_ids || []); }
+  if (req.body.role_id) ids.unshift(req.body.role_id);
+  ids = [...new Set(ids.map(String).filter(Boolean))];
+  if (!name) return res.status(400).json({ error: "Name is required" });
+  if (!ids.length && !general) return res.status(400).json({ error: "Choose at least one role, or send a general application" });
   if (!req.file && !req.body.resume_text) return res.status(400).json({ error: "Please attach your resume (PDF or Word)" });
   let resume_text = req.body.resume_text || "";
   if (req.file) { try { resume_text = (await extractText(req.file)).trim(); } catch (e) { return res.status(400).json({ error: "We could not read that file. Please upload a PDF or Word document, not a scan or photo." }); } if (resume_text.length < 40) return res.status(400).json({ error: "That file has no readable text. Please upload a PDF or Word document, not a scan or photo." }); }
-  const role = rowRole(db.prepare("SELECT * FROM roles WHERE id=? AND status='open'").get(role_id));
-  if (!role) return res.status(400).json({ error: "This position is no longer open. Please choose another from the careers page." });
+  const roles = ids.map((id) => rowRole(db.prepare("SELECT * FROM roles WHERE id=? AND status='open'").get(id))).filter(Boolean);
+  if (ids.length && !roles.length) return res.status(400).json({ error: "This position is no longer open. Please choose another from the careers page." });
   const source = internal ? "Internal (IJP)" : referrer ? "Referral" : "Careers page";
-  const r = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, resume_file, booking_token, location, current_employer, expected_salary, notice_period, referrer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)").run(role_id, name, canonPhone(phone), (email || "").trim().toLowerCase(), source, resume_text, req.file?.originalname || null, Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer);
-  logEvent(r.lastInsertRowid, "created", `via careers page for ${role.title} (${role.campus})`);
-  res.status(201).json({ ok: true, role: role.title, campus: role.campus });
-  // Acknowledge immediately, naming the role and campus, so a mistaken application is caught by the applicant at once
-  const cand = rowCandidate(db.prepare("SELECT * FROM candidates WHERE id=?").get(r.lastInsertRowid));
-  const body = fill(getTemplates().Applied, cand, role);
-  (async () => { try { const { waEnabled } = await import("../services/whatsapp.js"); const { mailEnabled } = await import("../services/email.js"); if (cand.phone && waEnabled()) await deliver(cand, "whatsapp", body, `Your application: ${role.title}`); else if (cand.email && mailEnabled()) await deliver(cand, "email", body, `Your application: ${role.title}`); } catch (e) { logEvent(cand.id, "ack_failed", e.message); } })();
+  const ins = db.prepare("INSERT INTO candidates (role_id, name, phone, email, source, resume_text, resume_file, booking_token, location, current_employer, expected_salary, notice_period, referrer, stage, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+  const made = [];
+  const targets = roles.length ? roles : [null];
+  for (const role of targets) {
+    const others = roles.filter((r) => r !== role).map((r) => r.title);
+    const note = role ? (others.length ? `Also applied for: ${others.join("; ")}` : "") : "General application: no specific role. Kept in the talent pool for future openings.";
+    const r = ins.run(role ? role.id : null, name, canonPhone(phone), (email || "").trim().toLowerCase(), source, resume_text, req.file?.originalname || null, Math.random().toString(36).slice(2) + Date.now().toString(36), location, current_employer, expected_salary, notice_period, referrer, role ? "Applied" : "Talent pool", note);
+    logEvent(r.lastInsertRowid, "created", role ? `via careers page for ${role.title} (${role.campus})${others.length ? `, also ${others.length} other role(s)` : ""}` : "via careers page, general application to the talent pool");
+    made.push({ id: r.lastInsertRowid, role });
+  }
+  res.status(201).json({ ok: true, role: roles.map((r) => r.title).join(", ") || "General application", campus: [...new Set(roles.map((r) => r.campus))].join(" and ") || "all campuses", count: made.length, general: !roles.length });
+  const cand = rowCandidate(db.prepare("SELECT * FROM candidates WHERE id=?").get(made[0].id));
+  const body = roles.length ? fill(getTemplates().Applied, cand, roles[0], { role: roles.map((r) => r.title).join(", "), campus: [...new Set(roles.map((r) => r.campus))].join(" and ") }) : fill(getTemplates()["General application"], cand, null);
+  (async () => { try { const { waEnabled } = await import("../services/whatsapp.js"); const { mailEnabled } = await import("../services/email.js"); if (cand.phone && waEnabled()) await deliver(cand, "whatsapp", body, "Your application to Healthy Planet School"); else if (cand.email && mailEnabled()) await deliver(cand, "email", body, "Your application to Healthy Planet School"); } catch (e) { logEvent(cand.id, "ack_failed", e.message); } })();
 } catch (e) { next(e); } });
 pub.get("/roles", (req, res) => res.json(db.prepare("SELECT id, title, department, campus, description, salary_band, grade, subject FROM roles WHERE status = 'open' AND (ijp_until IS NULL OR ijp_until < date('now'))").all()));
