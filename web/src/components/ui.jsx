@@ -52,3 +52,10 @@ export function PhoneInput({ value, onChange, onBlur, disabled, placeholder }) {
   </div>;
 }
 export const phoneValid = (v) => { const { code, num } = splitPhone(v); const fixed = FIXED_LENGTH[code]; return !num || (fixed ? num.length === fixed : num.length >= 6 && num.length <= 12); };
+
+// True on phone-sized screens; re-evaluates on rotate or resize
+export function useIsPhone(px = 760) {
+  const [v, setV] = useState(() => typeof window !== "undefined" && window.innerWidth <= px);
+  useEffect(() => { const f = () => setV(window.innerWidth <= px); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, [px]);
+  return v;
+}

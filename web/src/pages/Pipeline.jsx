@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, daysSince, BOARD, isManager, t } from "../api.js";
 import { useSearchParams } from "react-router-dom";
-import { Field, Score, ScrollStrip, PhoneInput, phoneValid } from "../components/ui.jsx";
+import { Field, Score, ScrollStrip, PhoneInput, phoneValid, useIsPhone } from "../components/ui.jsx";
 import CandidatePanel from "../components/CandidatePanel.jsx";
 import { useToast } from "../components/Shell.jsx";
 
@@ -15,6 +15,8 @@ export default function Pipeline() {
   const [f, setF] = useState({ name: "", phone: "", email: "", role_id: "", source: "Job portal", resume_text: "" }); const [file, setFile] = useState(null);
   const [bulk, setBulk] = useState(false); const [bulkFiles, setBulkFiles] = useState([]);
   const [campus, setCampus] = useState(""); const [queue, setQueue] = useState(null);
+  const [mobileStage, setMobileStage] = useState(null);
+  const isPhone = useIsPhone();
   useEffect(() => { if (!queue || (queue.pending === 0 && queue.active === 0)) return; const iv = setInterval(async () => { const q = await api("/candidates/queue"); setQueue(q); if (q.pending === 0 && q.active === 0) { clearInterval(iv); load(); say(`Screening finished: ${q.done} done${q.failed ? `, ${q.failed} failed` : ""}`); } else load(); }, 2500); return () => clearInterval(iv); }, [queue?.pending, queue?.active]);
   const campuses = [...new Set(roles.map((r) => r.campus).filter(Boolean))].sort();
   const boardRef = useRef(null);
@@ -71,6 +73,7 @@ export default function Pipeline() {
           <div className="row"><button className="primary" disabled={busy || !f.name.trim() || !phoneValid(f.phone)} onClick={add}>{busy ? "Adding..." : "Add to pipeline"}</button><button onClick={() => setAdding(false)}>Cancel</button></div>
         </div>
       )}
+      {isPhone ? <PhoneBoard shown={shown} roleFilter={roleFilter} stage={mobileStage} setStage={setMobileStage} open={setOpenId} /> : <>
       <ScrollStrip targetRef={boardRef} />
       <div className="board" ref={boardRef}>
         {BOARD.map((stage) => { const list = shown.filter((c) => c.stage === stage); return (
@@ -78,21 +81,47 @@ export default function Pipeline() {
             <h4><span>{t(stage)}</span><span className="muted" style={{ fontWeight: 400 }}>{list.length}</span></h4>
             <div className="stack">
               {list.length === 0 && <div className="muted" style={{ fontSize: 12, padding: 10, textAlign: "center" }}>Nothing here yet</div>}
-              {list.map((c) => { const d = daysSince(c.stage_at), stale = d >= 3 && stage !== "Joined"; return (
-                <div key={c.id} className={`cand ${stale ? "stale" : ""}`} role="button" tabIndex={0} onClick={() => setOpenId(c.id)} onKeyDown={(e) => e.key === "Enter" && setOpenId(c.id)}>
-                  <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap", gap: 4 }}><span className="name">{c.name}</span>{c.screening && <Score v={c.screening.overall} />}</div>
-                  {!roleFilter && <div className="role" title={c.role_title || "No role"}>{c.role_title || "No role"}</div>}
-                  {["high", "medium-high"].includes(c.integrity_risk) && <div style={{ fontSize: 11, color: "#B0463C", fontWeight: 500, marginTop: 4 }}>⚑ Possible outside help, review</div>}
-                  {c.blockers > 0 && <div style={{ fontSize: 11, color: "#8A6A10", marginTop: 4 }}>{c.blockers} check{c.blockers > 1 ? "s" : ""} before offer</div>}
-                  {c.interview_at && new Date(c.interview_at) > new Date() && <div style={{ fontSize: 11, color: "var(--blue)", marginTop: 4 }}>Booked {new Date(c.interview_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>}
-                  <div className="muted" style={{ fontSize: 11, marginTop: 3, color: stale ? "var(--coral)" : undefined }}>{c.queued ? "Screening..." : stale ? `Waiting ${d} days` : `${d}d in stage`}</div>
-                  {c.needs_human === 1 && <div style={{ fontSize: 11, color: "var(--coral)", marginTop: 4 }}>Replied, needs a person</div>}
-                </div>); })}
+              {list.map((c) => <Card key={c.id} c={c} stage={stage} roleFilter={roleFilter} open={setOpenId} />)}
             </div>
           </div>); })}
       </div>
       <ScrollStrip targetRef={boardRef} />
+      </>}
       {openId && <CandidatePanel id={openId} roles={roles} onClose={() => { setOpenId(null); load(); }} />}
     </div>
   );
+}
+
+
+// One candidate card, shared by the laptop board and the phone list
+function Card({ c, stage, roleFilter, open }) {
+  const d = daysSince(c.stage_at), stale = d >= 3 && stage !== "Joined";
+  return <div className={`cand ${stale ? "stale" : ""}`} role="button" tabIndex={0} onClick={() => open(c.id)} onKeyDown={(e) => e.key === "Enter" && open(c.id)}>
+    <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap", gap: 4 }}><span className="name">{c.name}</span>{c.screening && <Score v={c.screening.overall} />}</div>
+    {!roleFilter && <div className="role" title={c.role_title || "No role"}>{c.role_title || "No role"}</div>}
+    {["high", "medium-high"].includes(c.integrity_risk) && <div style={{ fontSize: 11, color: "#B0463C", fontWeight: 500, marginTop: 4 }}>⚑ Possible outside help, review</div>}
+    {c.blockers > 0 && <div style={{ fontSize: 11, color: "#8A6A10", marginTop: 4 }}>{c.blockers} check{c.blockers > 1 ? "s" : ""} before offer</div>}
+    {c.interview_at && new Date(c.interview_at) > new Date() && <div style={{ fontSize: 11, color: "var(--blue)", marginTop: 4 }}>Booked {new Date(c.interview_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</div>}
+    <div className="muted" style={{ fontSize: 11, marginTop: 3, color: stale ? "var(--coral)" : undefined }}>{c.queued ? "Screening..." : stale ? `Waiting ${d} days` : `${d}d in stage`}</div>
+    {c.needs_human === 1 && <div style={{ fontSize: 11, color: "var(--coral)", marginTop: 4 }}>Replied, needs a person</div>}
+  </div>;
+}
+
+// Phone layout: stage chips across the top, the chosen stage's candidates as a list. Empty stages are hidden.
+function PhoneBoard({ shown, roleFilter, stage, setStage, open }) {
+  const counts = Object.fromEntries(BOARD.map((st) => [st, shown.filter((c) => c.stage === st).length]));
+  const stages = BOARD.filter((st) => counts[st] > 0);
+  const current = stage && counts[stage] > 0 ? stage : stages[0];
+  const list = shown.filter((c) => c.stage === current);
+  const idx = stages.indexOf(current);
+  if (!stages.length) return <div className="card muted" style={{ textAlign: "center" }}>No candidates match. Change the role or campus filter, or add a candidate.</div>;
+  return <div>
+    <div className="chips">{stages.map((st) => <button key={st} className={`chip ${st === current ? "on" : ""}`} onClick={() => setStage(st)}>{t(st)} <span className="n">{counts[st]}</span></button>)}</div>
+    <div className="row" style={{ justifyContent: "space-between", margin: "10px 2px 8px" }}>
+      <button className="small" disabled={idx <= 0} onClick={() => setStage(stages[idx - 1])}>‹ {idx > 0 ? t(stages[idx - 1]) : ""}</button>
+      <b style={{ fontSize: 14 }}>{t(current)} <span className="muted" style={{ fontWeight: 400 }}>{list.length}</span></b>
+      <button className="small" disabled={idx >= stages.length - 1} onClick={() => setStage(stages[idx + 1])}>{idx < stages.length - 1 ? t(stages[idx + 1]) : ""} ›</button>
+    </div>
+    <div style={{ display: "grid", gap: 8 }}>{list.map((c) => <Card key={c.id} c={c} stage={current} roleFilter={roleFilter} open={open} />)}</div>
+  </div>;
 }

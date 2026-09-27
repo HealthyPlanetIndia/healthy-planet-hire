@@ -170,3 +170,10 @@ img, video { max-width: 100%; }
   .pagehead { padding: 16px 14px 4px; }
   main { padding: 4px 12px 96px; }
 }
+
+/* Stage chips on the phone pipeline */
+.chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: 0 0 auto; border-radius: 999px; padding: 7px 12px; font-size: 13px; background: var(--soft); border: 1px solid transparent; }
+.chip.on { background: var(--ink); color: #fff; }
+.chip .n { opacity: .7; font-variant-numeric: tabular-nums; margin-left: 2px; }
