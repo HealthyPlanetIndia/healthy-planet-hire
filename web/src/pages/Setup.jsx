@@ -29,7 +29,7 @@ export default function Setup() {
     <div className="card">
       <b>Test each connection</b>
       <div className="muted" style={{ fontSize: 13, margin: "4px 0 10px" }}>Type your own number and email, then press each button. Green means it works.</div>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+      <div className="grid cols-2" style={{ gap: "0 12px" }}>
         <Field label="Your WhatsApp / mobile number"><PhoneInput value={to} onChange={setTo} /></Field>
         <Field label="Your email"><input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
       </div>

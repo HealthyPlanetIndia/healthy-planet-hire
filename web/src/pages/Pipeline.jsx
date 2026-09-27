@@ -50,7 +50,7 @@ export default function Pipeline() {
       {bulk && <div className="card" style={{ marginBottom: 12, borderColor: "var(--blue)" }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Bulk import</div>
         <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Drop many CVs at once (PDF or Word; the name is read from each file) or a CSV with columns name, phone, email, resume_text. All go into the role selected below as Applied, ready for "Screen new".</div>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 2fr", gap: "0 12px" }}>
+        <div className="grid cols-1-2" style={{ gap: "0 12px" }}>
           <Field label="Role"><select value={f.role_id} onChange={(e) => setF({ ...f, role_id: e.target.value })}>{roles.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}</select></Field>
           <Field label={`Files${bulkFiles.length ? ` (${bulkFiles.length} selected)` : ""}`}><input type="file" multiple accept=".pdf,.docx,.txt,.csv" onChange={(e) => setBulkFiles([...e.target.files])} /></Field>
         </div>

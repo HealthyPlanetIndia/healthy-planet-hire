@@ -109,12 +109,12 @@ export default function CandidatePanel({ id, roles, onClose }) {
 
         {tab === "resume" && <div className="grid">
           <div className="card">
-            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <div className="grid cols-2" style={{ gap: "0 12px" }}>
               <Field label="WhatsApp mobile number"><PhoneInput value={c.phone || ""} onChange={(v) => setC({ ...c, phone: v })} onBlur={() => save({ phone: c.phone })} /></Field>
               <Field label="Email"><input value={c.email || ""} onChange={(e) => setC({ ...c, email: e.target.value })} onBlur={() => save({ email: c.email })} /></Field>
             </div>
             <Field label={`Upload a new resume${c.resume_file ? ` (current: ${c.resume_file})` : ""}`}><div className="row"><input type="file" accept=".pdf,.docx,.txt" onChange={(e) => setFile(e.target.files[0])} /><button className="small" disabled={!file || !!busy} onClick={uploadResume}>Read file</button></div></Field>
-            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <div className="grid cols-2" style={{ gap: "0 12px" }}>
               <Field label="Location (distance matters for a school day)"><input value={c.location || ""} onChange={(e) => setC({ ...c, location: e.target.value })} onBlur={() => save({ location: c.location })} /></Field>
               <Field label="Current school / employer"><input value={c.current_employer || ""} onChange={(e) => setC({ ...c, current_employer: e.target.value })} onBlur={() => save({ current_employer: c.current_employer })} /></Field>
               <Field label="Expected salary"><input value={c.expected_salary || ""} onChange={(e) => setC({ ...c, expected_salary: e.target.value })} onBlur={() => save({ expected_salary: c.expected_salary })} /></Field>
@@ -189,7 +189,7 @@ function Offer({ c, id, say, save }) {
   useEffect(() => { gen(); }, [c.salary, c.join_date]);
   return <div className="grid">
     <div className="card">
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+      <div className="grid cols-2" style={{ gap: "0 12px" }}>
         <Field label="Remuneration (as it should read in the letter)"><input value={salary} onChange={(e) => setSalary(e.target.value)} onBlur={() => salary !== c.salary && save({ salary })} placeholder="e.g. INR 55,000 per month (CTC INR 6.6 lakh)" /></Field>
         <Field label="Joining date"><input type="date" value={jd} onChange={(e) => { setJd(e.target.value); save({ join_date: e.target.value }); }} /></Field>
       </div>
@@ -258,7 +258,7 @@ function Process({ c, id, say, reload, save }) {
       <b>Screening call</b> <span className="muted" style={{ fontSize: 12 }}>HR, 10 to 15 minutes, after the AI interview</span>
       {c.screening_call?.at && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>Last recorded by {c.screening_call.by} on {new Date(c.screening_call.at).toLocaleDateString("en-IN")}</div>}
       {!isManager() && <>
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 10px", marginTop: 8 }}>
+        <div className="grid cols-2" style={{ gap: "0 10px", marginTop: 8 }}>
           <Field label="Location / travel"><input value={sc.location ?? c.location ?? ""} onChange={(e) => setSc({ ...sc, location: e.target.value })} /></Field>
           <Field label="Current employer"><input value={sc.current_employer ?? c.current_employer ?? ""} onChange={(e) => setSc({ ...sc, current_employer: e.target.value })} /></Field>
           <Field label="Expected salary"><input value={sc.expected_salary ?? c.expected_salary ?? ""} onChange={(e) => setSc({ ...sc, expected_salary: e.target.value })} /></Field>
@@ -294,7 +294,7 @@ function Process({ c, id, say, reload, save }) {
     {/* HR discussion */}
     {stageIdx >= STAGES.indexOf("HR discussion") && !isManager() && <div className="card">
       <b>HR discussion</b> <span className="muted" style={{ fontSize: 12 }}>Round 6: compensation, joining timeline, policy clarifications</span>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 10px", marginTop: 8 }}>
+      <div className="grid cols-2" style={{ gap: "0 10px", marginTop: 8 }}>
         <Field label="Agreed remuneration (as it will read in the letter)"><input value={hd.agreed_salary || ""} onChange={(e) => setHd({ ...hd, agreed_salary: e.target.value })} placeholder="e.g. INR 55,000 per month (CTC INR 6.6 lakh)" /></Field>
         <Field label="Joining date"><input type="date" value={hd.join_date || ""} onChange={(e) => setHd({ ...hd, join_date: e.target.value })} /></Field>
       </div>

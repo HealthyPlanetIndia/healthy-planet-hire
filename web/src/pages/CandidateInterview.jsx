@@ -209,7 +209,7 @@ export default function CandidateInterview() {
 
             <div style={{ fontWeight: 700, fontSize: 15, margin: "16px 0 6px", paddingTop: 12, borderTop: "1px solid var(--line)" }}>{t.check}</div>
             {camState !== "on" && <div><button className="warm" onClick={startCamera}>{lang === "hi" ? "कैमरा और माइक चालू करें" : "Turn on camera and microphone"}</button>{camState === "denied" && <div style={{ color: "#B0463C", fontSize: 13, marginTop: 6 }}>{t.need}</div>}</div>}
-            {camState === "on" && <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 12, alignItems: "center" }}>
+            {camState === "on" && <div className="camcheck">
               <video ref={videoRef} autoPlay muted playsInline style={{ width: 180, height: 135, objectFit: "cover", borderRadius: 10, transform: "scaleX(-1)", background: "#000" }} />
               <div style={{ fontSize: 13, lineHeight: 1.5 }}>
                 <div style={{ color: light === "dark" ? "#B0463C" : light === "ok" ? "var(--green)" : "var(--mute)" }}>{light === null ? "..." : light === "dark" ? t.checkDark : t.checkOk} {light === "dark" && <button className="link" style={{ fontSize: 12 }} onClick={checkLight}>{lang === "hi" ? "फिर जाँचें" : "check again"}</button>}</div>

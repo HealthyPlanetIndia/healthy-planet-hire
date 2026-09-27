@@ -16,7 +16,7 @@ export default function Dashboard() {
       {(reqs.length > 0 || n("Final review") > 0) && <div className="card" style={{ borderColor: "var(--blue)" }}><b>Waiting for the Director</b><div className="muted" style={{ fontSize: 13 }}>{reqs.length > 0 && <div><Link to="/roles">{reqs.length} manpower requisition{reqs.length > 1 ? "s" : ""}</Link> to approve or reject.</div>}{n("Final review") > 0 && <div><Link to="/pipeline">{n("Final review")} candidate{n("Final review") > 1 ? "s" : ""}</Link> at Final review awaiting your decision.</div>}</div></div>}
       {todo.length > 0 && <Link to="/setup" className="card" style={{ textDecoration: "none", color: "inherit", borderColor: "var(--yellow)", background: "#FFFBEF" }}><b>Finish setting up</b><div className="muted" style={{ fontSize: 13 }}>{todo.length} required step{todo.length > 1 ? "s" : ""} left: {todo.map((i) => i.label).join(", ")}. Open Setup to test connections and fix them.</div></Link>}
       <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 0, padding: "14px 8px" }}>
-        {[["Active candidates", active], ["New this week", d.newThisWeek], ["Awaiting screening", n("Applied")], ["AI interviews done", done], ["Avg days to offer", d.avgDaysToOffer ?? "none yet"], ["In talent pool", n("Talent pool")]].map(([l, v], i) => <div key={l} style={{ padding: "2px 14px", borderLeft: i ? "1px solid var(--line)" : "none" }}><div className="stat" style={{ fontSize: 26 }}>{v}</div><div className="muted" style={{ fontSize: 12 }}>{l}</div></div>)}
+        {[["Active candidates", active], ["New this week", d.newThisWeek], ["Awaiting screening", n("Applied")], ["AI interviews done", done], ["Avg days to offer", d.avgDaysToOffer ?? "0"], ["In talent pool", n("Talent pool")]].map(([l, v], i) => <div key={l} style={{ padding: "2px 14px", borderLeft: i ? "1px solid var(--line)" : "none" }}><div className="stat" style={{ fontSize: 26 }}>{v}</div><div className="muted" style={{ fontSize: 12 }}>{l}</div></div>)}
       </div>
       <RolesBoard d={d} />
       <details className="card">
@@ -68,7 +68,7 @@ function RolesBoard({ d }) {
     {Object.entries(byCampus).map(([c, rs]) => <div key={c} style={{ marginTop: 14 }}>
       <div className="row" style={{ justifyContent: "space-between", padding: "0 2px 6px" }}><b style={{ fontSize: 13, color: "var(--mute)" }}>{c}</b><span className="muted" style={{ fontSize: 12 }}>{rs.length} role{rs.length > 1 ? "s" : ""} · {rs.reduce((a, r) => a + r.total, 0)} applications</span></div>
       {rs.map((r) => { const a = active(r); const b = busiest(r); const isOpen = open === r.id; return <div key={r.id} style={{ borderTop: "1px solid var(--line)", padding: "12px 2px", opacity: r.status === "open" ? 1 : .55 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1.2fr) minmax(200px, 2fr) auto", gap: 16, alignItems: "center", cursor: "pointer" }} onClick={() => setOpen(isOpen ? null : r.id)}>
+        <div className="rolerow" onClick={() => setOpen(isOpen ? null : r.id)}>
           <div style={{ minWidth: 0 }}>
             <Link to={`/pipeline?role=${r.id}`} onClick={(e) => e.stopPropagation()} style={{ color: "inherit", fontWeight: 600, fontSize: 15, textDecoration: "none" }}>{r.title}</Link>
             <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{r.openings} opening{r.openings > 1 ? "s" : ""}{r.stages["Joined"] ? `, ${r.stages["Joined"]} joined` : ""}{r.status !== "open" ? " · closed" : ""}{r.week ? <span style={{ color: "var(--green)" }}> · +{r.week} this week</span> : ""}</div>
@@ -79,7 +79,7 @@ function RolesBoard({ d }) {
             </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{a === 0 ? (r.total ? "Nobody active; see archive" : "No applications yet") : <><b style={{ color: "var(--ink)" }}>{a} active</b>{b ? `, most at ${b}` : ""}</>}</div>
           </div>
-          <div style={{ textAlign: "right", minWidth: 110 }}>
+          <div className="rolerow-right">
             {r.waiting ? <div style={{ color: "#B0463C", fontWeight: 600, fontSize: 13 }}>{r.waiting} waiting 3+ days</div> : <div className="muted" style={{ fontSize: 13 }}>Nothing stuck</div>}
             <div className="muted" style={{ fontSize: 12 }}>{r.total} total{count(r, ARCHIVE) ? ` · ${count(r, ARCHIVE)} archived` : ""}</div>
           </div>

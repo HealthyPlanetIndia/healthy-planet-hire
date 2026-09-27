@@ -126,3 +126,47 @@ main { padding: 8px 32px 48px; max-width: 1240px; }
 
 /* Tables */
 table th { font-weight: 600; color: var(--mute); font-size: 12px; }
+
+
+/* Responsive grids: named column sets that collapse on phones */
+.grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.grid.cols-1-2 { grid-template-columns: 1fr 2fr; }
+.grid.cols-2-1-1-1 { grid-template-columns: 2fr 1fr 1fr 1fr; }
+.grid.cols-2-1-1 { grid-template-columns: 2fr 1fr 1fr; }
+.rolerow { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(200px, 2fr) auto; gap: 16px; align-items: center; cursor: pointer; }
+.rolerow-right { text-align: right; min-width: 110px; }
+.ivgrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; }
+.camcheck { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: center; }
+table { max-width: 100%; }
+.tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+img, video { max-width: 100%; }
+@media (max-width: 760px) {
+  .grid.cols-2, .grid.cols-3, .grid.cols-1-2, .grid.cols-2-1-1-1, .grid.cols-2-1-1 { grid-template-columns: 1fr; }
+  .rolerow { grid-template-columns: 1fr; gap: 8px; }
+  .rolerow-right { text-align: left; display: flex; gap: 10px; align-items: baseline; }
+  .ivgrid { grid-template-columns: 1fr; }
+  .camcheck { grid-template-columns: 1fr; }
+  .card { padding: 14px; border-radius: 14px; }
+  .pagehead h1 { font-size: 22px; }
+  .row > button, .row > select { flex: 0 1 auto; }
+  .drawer { width: 100%; padding: 16px 14px 100px; border-left: none; }
+  .drawer-bg { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .col { min-width: 200px; width: 72vw; max-width: 280px; }
+  .board { scroll-snap-type: x proximity; padding-bottom: 12px; }
+  .col { scroll-snap-align: start; }
+  .cand { font-size: 13px; padding: 11px 12px; }
+  .cand .name { font-size: 14px; }
+  .tabs { width: 100%; display: flex; }
+  .tabs button { flex: 0 0 auto; padding: 8px 12px; }
+  .stat { font-size: 24px; }
+  input, textarea, select { font-size: 16px; } /* stops iOS zooming into fields */
+  button { padding: 10px 16px; }
+  button.small { padding: 7px 12px; }
+  h1 { font-size: 22px; }
+}
+@media (max-width: 420px) {
+  .col { width: 84vw; }
+  .pagehead { padding: 16px 14px 4px; }
+  main { padding: 4px 12px 96px; }
+}

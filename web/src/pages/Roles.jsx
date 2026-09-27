@@ -62,19 +62,19 @@ function RoleForm({ role, managers, onSave, onCancel }) {
     <div className="card" style={{ maxWidth: 720 }}>
       <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 12 }}>{role.id ? "Edit role" : isAdmin() ? "New role" : "Manpower requisition"}</div>
       <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Step 1 of the HR process. Role, grade, subject or department, number of openings and justification{isAdmin() ? "." : "; the Director approves before it is posted."}</div>
-      <div className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: "0 10px" }}>
+      <div className="grid cols-2-1-1-1" style={{ gap: "0 10px" }}>
         <Field label="Title"><input value={r.title} onChange={(e) => setR({ ...r, title: e.target.value })} /></Field>
         <Field label="Department"><input value={r.department} onChange={(e) => setR({ ...r, department: e.target.value })} /></Field>
         <Field label="Campus"><select value={r.campus} onChange={(e) => setR({ ...r, campus: e.target.value })}>{(status?.campuses || ["Sun City, NH24, Ghaziabad", "Wishtown, Sec 131, Noida"]).map((c) => <option key={c}>{c}</option>)}</select></Field>
         <Field label="Openings"><input type="number" min={1} value={r.openings} onChange={(e) => setR({ ...r, openings: +e.target.value })} /></Field>
       </div>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px" }}>
+      <div className="grid cols-3" style={{ gap: "0 10px" }}>
         <Field label="Grade(s)"><input value={r.grade || ""} onChange={(e) => setR({ ...r, grade: e.target.value })} placeholder="e.g. Grades 3 to 5" /></Field>
         <Field label="Subject"><input value={r.subject || ""} onChange={(e) => setR({ ...r, subject: e.target.value })} placeholder="e.g. Mathematics" /></Field>
         <Field label="Reporting manager (named in the offer letter)"><input value={r.reporting_manager || ""} onChange={(e) => setR({ ...r, reporting_manager: e.target.value })} placeholder="e.g. Primary Coordinator" /></Field>
       </div>
       <Field label="Justification (why this position, why now)"><textarea value={r.justification || ""} onChange={(e) => setR({ ...r, justification: e.target.value })} style={{ minHeight: 60 }} /></Field>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+      <div className="grid cols-2" style={{ gap: "0 10px" }}>
         <Field label="Internal job posting first: hide from the public careers page and job feeds until"><input type="date" value={r.ijp_until || ""} onChange={(e) => setR({ ...r, ijp_until: e.target.value })} /></Field>
         <Field label="Salary band (shown in job feeds if filled)"><input value={r.salary_band || ""} onChange={(e) => setR({ ...r, salary_band: e.target.value })} placeholder="e.g. INR 45,000 to 60,000 per month" /></Field>
         <Field label="Hiring manager (sees shortlisted candidates and scores them)"><select value={r.manager_id || ""} onChange={(e) => setR({ ...r, manager_id: e.target.value })}><option value="">None</option>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
@@ -97,7 +97,7 @@ function RoleForm({ role, managers, onSave, onCancel }) {
       <div className="row">{Object.entries(status?.languages || { en: "English", hi: "हिन्दी" }).map(([k, l]) => <label key={k} style={{ fontSize: 13 }}><input type="checkbox" style={{ width: "auto" }} checked={(r.languages || ["en"]).includes(k)} disabled={k === "en"} onChange={(e) => setR({ ...r, languages: e.target.checked ? [...(r.languages || ["en"]), k] : (r.languages || ["en"]).filter((x) => x !== k) })} /> {l}</label>)}</div>
       <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>English is always on. Add others only when the role needs them, for example a Hindi teacher.</div>
       <div style={{ fontWeight: 500, margin: "16px 0 6px" }}>Interview length</div>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "0 10px" }}>
+      <div className="grid cols-2" style={{ gap: "0 10px" }}>
         <Field label="Questions per interview (drawn from the bank, one per competency)"><select value={r.max_questions || 4} onChange={(e) => setR({ ...r, max_questions: +e.target.value })}>{[3, 4, 5, 6].map((n) => <option key={n} value={n}>{n} {n === 4 ? "(recommended, about 12 to 15 minutes with a scenario)" : ""}</option>)}</select></Field>
         <Field label="Maximum seconds per answer (recording stops automatically)"><select value={r.answer_seconds || 90} onChange={(e) => setR({ ...r, answer_seconds: +e.target.value })}>{[60, 75, 90, 120, 150].map((n) => <option key={n} value={n}>{n} seconds</option>)}</select></Field>
       </div>
@@ -151,7 +151,7 @@ function Scenarios({ r, setR, comps }) {
     {list.map((sc, i) => <div key={sc.id || i} style={{ borderTop: "1px solid var(--line)", padding: "6px 0" }}>
       <div className="row" style={{ justifyContent: "space-between" }}><span style={{ fontSize: 13 }}><span className="pill" style={{ background: sc.type === "roleplay" ? "#EAF1FB" : "#E6F1EA", marginRight: 6 }}>{sc.type === "roleplay" ? "Role play" : "Situation"}</span><b>{sc.title || "(untitled)"}</b> <span className="muted">· {sc.assesses}</span></span><div className="row"><button className="small" onClick={() => setOpen(open === i ? null : i)}>{open === i ? "Close" : "Edit"}</button><button className="small danger" onClick={() => setR({ ...r, scenarios: list.filter((_, j) => j !== i) })}>×</button></div></div>
       {open === i && <div style={{ marginTop: 6 }}>
-        <div className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr", gap: "0 8px" }}>
+        <div className="grid cols-2-1-1" style={{ gap: "0 8px" }}>
           <Field label="Title (for you, not the candidate)"><input value={sc.title} onChange={(e) => set(i, { title: e.target.value })} /></Field>
           <Field label="Kind"><select value={sc.type} onChange={(e) => set(i, { type: e.target.value })}><option value="roleplay">Role play (Maya plays a person)</option><option value="situation">Classroom situation</option></select></Field>
           <Field label="Assesses"><select value={sc.assesses} onChange={(e) => set(i, { assesses: e.target.value })}>{comps.map((c) => <option key={c}>{c}</option>)}</select></Field>

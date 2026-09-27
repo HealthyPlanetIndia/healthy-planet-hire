@@ -62,7 +62,7 @@ export default function Apply() {
       <label className="field">WhatsApp mobile number<PhoneInput value={f.phone} onChange={(v) => setF({ ...f, phone: v })} /></label>
       <label className="field">Email<input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></label>
       <label className="field">Where do you live (area and city)? Travel time matters for a school day.<input value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="e.g. Indirapuram, Ghaziabad" /></label>
-      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px" }}>
+      <div className="grid cols-3" style={{ gap: "0 10px" }}>
         <label className="field">Current school / employer<input value={f.current_employer} onChange={(e) => setF({ ...f, current_employer: e.target.value })} /></label>
         <label className="field">Expected salary<input value={f.expected_salary} onChange={(e) => setF({ ...f, expected_salary: e.target.value })} placeholder="per month" /></label>
         <label className="field">Notice period<input value={f.notice_period} onChange={(e) => setF({ ...f, notice_period: e.target.value })} placeholder="e.g. 30 days" /></label>
