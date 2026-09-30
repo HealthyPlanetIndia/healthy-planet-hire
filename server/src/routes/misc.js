@@ -1,5 +1,8 @@
 import { Router } from "express";
-import { db, ACTIVE_STAGES, STAGES, audit } from "../db.js";
+import { db, ACTIVE_STAGES, STAGES, audit, DATA_DIR, FILES_DIR } from "../db.js";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { runRetention, backup } from "../services/retention.js";
 import { videoEnabled } from "../services/video.js";
 import { getTemplates, DEFAULT_TEMPLATES } from "../services/messaging.js";
@@ -97,6 +100,27 @@ misc.get("/requisitions", requireAdmin, (req, res) => res.json(db.prepare("SELEC
 misc.get("/audit", requireAdmin, (req, res) => res.json(db.prepare("SELECT * FROM audit ORDER BY id DESC LIMIT 300").all()));
 misc.post("/retention/run", requireAdmin, (req, res) => { audit(req, "ran retention"); res.json(runRetention()); });
 misc.post("/backup", requireAdmin, (req, res) => { audit(req, "manual backup"); res.json({ file: backup() }); });
+
+// ---- Export for Ecosystem (read-only mirror of this app while both run). Needs an API key or an admin sign-in. ----
+const exportAllowed = (req, res, next) => (req.headers["x-api-key"] || req.user?.role === "admin" ? next() : res.status(403).json({ error: "Admins or API keys only" }));
+misc.get("/export/db", exportAllowed, async (req, res) => {
+  const tmp = path.join(os.tmpdir(), `hph-export-${Date.now()}.db`);
+  try { await db.backup(tmp); audit(req, "export db"); res.setHeader("Content-Type", "application/octet-stream"); res.setHeader("Content-Disposition", 'attachment; filename="hph.db"'); fs.createReadStream(tmp).on("close", () => fs.rm(tmp, () => {})).pipe(res); }
+  catch (e) { fs.rm(tmp, () => {}); res.status(500).json({ error: e.message }); }
+});
+misc.get("/export/files", exportAllowed, (req, res) => {
+  const out = [];
+  const walk = (dir, rel) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const r = rel ? `${rel}/${e.name}` : e.name; if (e.isDirectory()) walk(path.join(dir, e.name), r); else out.push({ path: r, size: fs.statSync(path.join(dir, e.name)).size }); } };
+  if (fs.existsSync(FILES_DIR)) walk(FILES_DIR, "");
+  res.json({ files: out, mediakey: fs.existsSync(path.join(DATA_DIR, ".mediakey")) });
+});
+misc.get("/export/file", exportAllowed, (req, res) => {
+  const rel = String(req.query.path || "");
+  const abs = path.resolve(FILES_DIR, rel);
+  if (!abs.startsWith(path.resolve(FILES_DIR) + path.sep) || !fs.existsSync(abs) || fs.statSync(abs).isDirectory()) return res.status(404).json({ error: "No such file" });
+  res.sendFile(abs);
+});
+misc.get("/export/mediakey", exportAllowed, (req, res) => { const f = path.join(DATA_DIR, ".mediakey"); if (!fs.existsSync(f)) return res.status(404).json({ error: "No media key" }); audit(req, "export mediakey"); res.type("text/plain").send(fs.readFileSync(f, "utf8").trim()); });
 
 misc.get("/dashboard", (req, res) => {
   const byStage = db.prepare("SELECT stage, COUNT(*) n FROM candidates WHERE anonymized=0 GROUP BY stage").all();
